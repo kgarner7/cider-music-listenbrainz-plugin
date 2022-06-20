@@ -73,11 +73,11 @@ Vue.component("plugin.listenbrainz", {
         </div>
         <div class="md-option-line" v-show="settings.enabled && settings.username != undefined">
           <div class="md-option-segment">
-            {{ app.getLz('settings.option.connectivity.lastfmScrobble.removeFeatured').replace("Last.fm", "ListenBrainz") }}
+            {{ app.getLz('settings.option.connectivity.lastfmScrobble.filterLoop').replace("Last.fm", "ListenBrainz") }}
           </div>
           <div class="md-option-segment md-option-segment_auto">
             <label>
-              <input type="checkbox" switch v-model="settings.filterFeat" />
+              <input type="checkbox" switch v-model="settings.filterLoop" />
             </label>
           </div>
         </div>
@@ -89,7 +89,7 @@ Vue.component("plugin.listenbrainz", {
     settings: {
       delay: 50,
       enabled: false,
-      filterFeat: false,
+      filterLoop: false,
       nowPlaying: false,
       token: undefined,
       username: undefined
