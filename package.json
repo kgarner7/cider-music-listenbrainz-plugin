@@ -7,7 +7,7 @@
   },
   "author": "Kendall Garner <17521368+kgarner7@users.noreply.github.com>",
   "license": "MIT",
-  "description": "A plugin for Cider Music to scrobble to Listenbrainz",
+  "description": "Cider ListenBrainz Scrobbler",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/kgarner7/cider-music-listenbrainz-plugin"

@@ -5,6 +5,9 @@ const { ipcMain } = require("electron");
 const MAX_FRACTION_BEFORE_SCROBBLING = 0.8;
 const PLUGIN_NAME = "listenbrainz";
 
+
+// Adapted heavily from https://github.com/ciderapp/Cider/blob/dfd3fe6271f8328e3530bc7bc89d60c2f9536b87/src/main/plugins/lastfm.ts
+// In particular, getPrimaryArtist is virtually the same
 module.exports = class CiderListenbrainzBackend {
   constructor(env) {
     this._env = env;
@@ -30,93 +33,101 @@ module.exports = class CiderListenbrainzBackend {
     this._net = net;
 
     // Handle Pause/Play Events. We want to keep track of the total time elapsed
-    ipcMain.on("playbackStateDidChange", (_event, data) => {
-      if (!this._store.general.privateEnabled && this._settings.enabled && data.artistName) {
-        if (data.status) {
-          this._startTime = data.startTime;
-          this.scrobbleSong();
-        } else {
-          if (this._timer) clearTimeout(this._timer);
-          this._timeElapsedMs += data.startTime - this._startTime;
-        }
-      }
-    });
-
-    // Handle new tracks. Uses the Last.FM event, because the data is localized.
-    ipcMain.on("nowPlayingItemDidChangeLastFM", (_event, data) => {
-      if (!this._store.general.privateEnabled && this._settings.enabled && data.artistName) {
-        // Save the ID; this will be used for later checks
-        this._id = data.playParams.id;
-        // ListenBrainz expects the start time in seconds
-        this._listenStartSec = Math.floor(data.startTime / 1000);
-
-        // This forms the core of a payload for ListenBrainz
-        // https://listenbrainz.readthedocs.io/en/latest/users/json.htm
-        this._payload = {
-          track_metadata: {
-            additional_info: {
-              duration_ms: data.durationInMillis,
-              isrc: data.isrc,
-              music_service: "music.apple.com",
-              origin_url: data.url.appleMusic,
-              tracknumber: data.trackNumber
-            },
-            artist_name: data.artistName,
-            release_name: data.albumName.replace(/ - Single| - EP/g, ''),
-            track_name: data.name
+    try {
+      ipcMain.on("playbackStateDidChange", (_event, data) => {
+        if (!this._store.general.privateEnabled && this._settings.enabled && data.artistName) {
+          if (data.status) {
+            this._startTime = data.startTime;
+            this.scrobbleSong();
+          } else {
+            if (this._timer) clearTimeout(this._timer);
+            this._timeElapsedMs += data.startTime - this._startTime;
           }
-        };
-
-        this._scrobbled = false;
-        // Reset custom variables to keep track of timing
-        this._startTime = data.startTime;
-        this._timeElapsedMs = 0;
-
-        // Adapted from LastFM plugin; if we do not filter loop, clear prior
-        // IDs. Otherwise, they are preserved (which can detect duplicate tracks)
-        if (!this._store.lastfm.filterLoop) {
-          this._cachedId = undefined;
-          this._cachedNowPlayingId = undefined;
         }
+      });
 
-        if (this._settings.nowPlaying) {
-          this.updateNowPlayingSong();
-        }
+      // Handle new tracks. Uses the Last.FM event, because the data is localized.
+      ipcMain.on("nowPlayingItemDidChangeLastFM", async (_event, data) => {
+        if (!this._store.general.privateEnabled && this._settings.enabled && data.artistName) {
+          // Save the ID; this will be used for later checks
+          this._id = data.playParams.catalogId || data.playParams.id;
+          // ListenBrainz expects the start time in seconds
+          this._listenStartSec = Math.floor(data.startTime / 1000);
 
-        this.scrobbleSong();
-      }
-    });
+          const artist = await this._getPrimaryArtist(data.artistName);
 
-    // Handle setting changes from the frontend.
-    ipcMain.handle(`plugin.${PLUGIN_NAME}.setting`, (_event, settings) => {
-      if (!settings) return;
-
-      if (settings.delay) {
-        settings.delay = parseInt(settings.delay, 10);
-      }
-
-      // If the token changed, try to validate it.
-      const changed = this._settings.token !== settings.token;
-      this._settings = settings;
-
-      if (changed && this._settings.token) {
-        // https://listenbrainz.readthedocs.io/en/latest/users/api/core.html (validate-token API)
-        this._submitRequest(undefined, (data) => {
-          const message = data.valid ? {
-            ok: true, name: data.user_name
-          } : {
-            ok: false, error: data.message
+          // This forms the core of a payload for ListenBrainz
+          // https://listenbrainz.readthedocs.io/en/latest/users/json.htm
+          this._payload = {
+            track_metadata: {
+              additional_info: {
+                duration_ms: data.durationInMillis,
+                isrc: data.isrc,
+                music_service: "music.apple.com",
+                origin_url: data.url.appleMusic,
+                tracknumber: data.trackNumber
+              },
+              artist_name: artist,
+              release_name: data.albumName.replace(/ - Single| - EP/g, ''),
+              track_name: data.name
+            }
           };
 
-          this._env.utils.getWindow().webContents.send(`plugin.${PLUGIN_NAME}.name`, message);
-        }, (error) => {
-          this._env.utils.getWindow().webContents.send(`plugin.${PLUGIN_NAME}.name`, {
-            ok: false,
-            error: error
-          });
-        }, "/1/validate-token", "GET");
-      }
-    });
+          this._scrobbled = false;
+          // Reset custom variables to keep track of timing
+          this._startTime = data.startTime;
+          this._timeElapsedMs = 0;
+
+          // Adapted from LastFM plugin; if we do not filter loop, clear prior
+          // IDs. Otherwise, they are preserved (which can detect duplicate tracks)
+          if (!this._settings.filterLoop) {
+            this._cachedId = undefined;
+            this._cachedNowPlayingId = undefined;
+          }
+
+          if (this._settings.nowPlaying) {
+            this.updateNowPlayingSong();
+          }
+
+          this.scrobbleSong();
+        }
+      });
+
+      // Handle setting changes from the frontend.
+      ipcMain.handle(`plugin.${PLUGIN_NAME}.setting`, (_event, settings) => {
+        if (!settings) return;
+
+        if (settings.delay) {
+          settings.delay = parseInt(settings.delay, 10);
+        }
+
+        // If the token changed, try to validate it.
+        const changed = this._settings.token !== settings.token;
+        this._settings = settings;
+
+        if (changed && this._settings.token) {
+          // https://listenbrainz.readthedocs.io/en/latest/users/api/core.html (validate-token API)
+          this._submitRequest(undefined, (data) => {
+            const message = data.valid ? {
+              ok: true, name: data.user_name
+            } : {
+              ok: false, error: data.message
+            };
+
+            this._env.utils.getWindow().webContents.send(`plugin.${PLUGIN_NAME}.name`, message);
+          }, (error) => {
+            this._env.utils.getWindow().webContents.send(`plugin.${PLUGIN_NAME}.name`, {
+              ok: false,
+              error: error
+            });
+          }, "/1/validate-token", "GET");
+        }
+      });
+    } catch (_ignored) {
+      // An error should only fire if we attempt to handle a second time.
+      // This seems to happen if you are prompted to log in and then press continue. In this case,
+      // we should ignore the error
+    }
   }
 
   onRendererReady(_win) {
@@ -134,7 +145,7 @@ module.exports = class CiderListenbrainzBackend {
     this._submitRequest(submission, () => {
       self._cachedNowPlayingId = this._id;
     }, (error) => {
-      console.error(error);
+      console.error("[ListenBrainz]", error);
     });
   }
 
@@ -173,7 +184,7 @@ module.exports = class CiderListenbrainzBackend {
         this._submitRequest(submission, (_data) => {
           self._cachedId = this._id;
         }, (error) => {
-          console.error(error)
+          console.error("[ListenBrainz]", error);
         });
       }, remainingTime);
     }
@@ -210,5 +221,53 @@ module.exports = class CiderListenbrainzBackend {
     }
 
     request.end();
+  }
+
+  async _getPrimaryArtist(originalName) {
+    if (!this._settings.removeFeatured || !this._id) return originalName;
+
+    const res = await this._env.utils.getWindow().webContents.executeJavaScript(`
+        (async () => {
+            const subMk = await MusicKit.getInstance().api.v3.music("/v1/catalog/" + MusicKit.getInstance().storefrontId + "/songs/${this._id}", {
+                include: {
+                    songs: ["artists"]
+                }
+            });
+            if (!subMk) console.error('[ListenBrainz] Request failed: /v1/catalog/us/songs/${this._id}');
+            return subMk.data;
+        })()
+    `).catch(console.error);
+    if (!res) return originalName;
+
+    const data = res.data;
+    if (!data.length) {
+      console.error(`[ListenBrainz] Unable to locate song with id of ${this._id}`)
+      return originalName;
+    }
+
+    const artists = res.data[0].relationships.artists.data;
+    if (!artists.length) {
+      console.error(`[ListenBrainz] Unable to find artists related to the song with id of ${this._id}`)
+      return originalName;
+    }
+
+    const primaryArtist = artists[0];
+
+    // Contrary to the LastFM plugin, it appears that the name might not be included in
+    // the attributes. In this case, try to fetch the artist manually
+    if (primaryArtist.attributes && primaryArtist.attributes.name) {
+      return primaryArtist.attributes.name;
+    } else {
+      const artistRes = await this._env.utils.getWindow().webContents.executeJavaScript(`
+        (async () => {
+            const subMk = await MusicKit.getInstance().api.v3.music("${primaryArtist.href}", {});
+            if (!subMk) console.error('[ListenBrainz] Request failed: ${primaryArtist.href}');
+            return subMk.data;
+        })()
+      `).catch(console.error);
+
+      if (!artistRes) return originalName;
+      return artistRes.data[0].attributes.name;
+    }
   }
 }

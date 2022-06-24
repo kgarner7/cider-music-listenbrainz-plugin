@@ -17,6 +17,7 @@ function updateLocalStorage(data) {
 
 let username = undefined;
 
+// Adapted from https://github.com/ChaseIngebritson/Cider-Music-Recommendation-Plugin/blob/e4f9d06ebfc6182983333dabb7d7946d744db010/src/components/musicRecommendations-vue.js
 Vue.component("plugin.listenbrainz", {
   template: `
   <div class="content-inner settings-page">
@@ -81,6 +82,16 @@ Vue.component("plugin.listenbrainz", {
             </label>
           </div>
         </div>
+        <div class="md-option-line" v-show="settings.enabled && settings.username != undefined">
+          <div class="md-option-segment">
+            {{ app.getLz('settings.option.connectivity.lastfmScrobble.removeFeatured').replace("Last.fm", "ListenBrainz") }}
+          </div>
+          <div class="md-option-segment md-option-segment_auto">
+            <label>
+              <input type="checkbox" switch v-model="settings.removeFeatured" />
+            </label>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -91,6 +102,7 @@ Vue.component("plugin.listenbrainz", {
       enabled: false,
       filterLoop: false,
       nowPlaying: false,
+      removeFeatured: false,
       token: undefined,
       username: undefined
     },
