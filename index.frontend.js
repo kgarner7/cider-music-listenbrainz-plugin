@@ -29,7 +29,7 @@ Vue.component("plugin.listenbrainz", {
         <div class="md-option-segment">
           <a
             href="https://listenbrainz.org/login/musicbrainz?next=%2Fprofile%2F" target="_blank" rel="noreferrer">
-              {{ app.getLz('settings.option.connectivity.lastfmScrobble') }} token
+              {{ app.getLz('settings.option.connectivity.lastfmScrobble').replace("Last.fm", "ListenBrainz") }} token
           </a>
           <span v-show="settings.username !== undefined">
             ({{ settings.username }})
