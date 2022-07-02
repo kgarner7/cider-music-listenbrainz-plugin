@@ -2,9 +2,12 @@ const { join } = require("path");
 
 const { ipcMain } = require("electron");
 
+const package = require("./package.json");
+
 const MAX_FRACTION_BEFORE_SCROBBLING = 0.8;
 const PLUGIN_NAME = "listenbrainz";
 
+const USER_AGENT = `${package.name}/${package.version} { ${package.repository.url} }`
 
 // Adapted heavily from https://github.com/ciderapp/Cider/blob/dfd3fe6271f8328e3530bc7bc89d60c2f9536b87/src/main/plugins/lastfm.ts
 // In particular, getPrimaryArtist is virtually the same
@@ -207,6 +210,9 @@ module.exports = class CiderListenbrainzBackend {
       path: endPoint
     });
 
+    request.setHeader("Authorization", `Token ${this._settings.token}`);
+    request.setHeader("User-Agent", USER_AGENT);
+
     request.on("response", (response) => {
       response.on("data", (chunk) => {
         const respJson = JSON.parse(chunk.toString("utf-8"));
@@ -221,7 +227,6 @@ module.exports = class CiderListenbrainzBackend {
     });
 
     request.on("error", onError);
-    request.setHeader("Authorization", `Token ${this._settings.token}`);
 
     // If we have a JSON body (e.g., not validate-token), send that
     if (submission) {
@@ -238,6 +243,7 @@ module.exports = class CiderListenbrainzBackend {
         // We do it in to requests because THE FIRST ONE DOESN'T RETURN RESULTS IN JSON IF YOU DO 
         // &inc=artists (06/02/2022)
         const isrcRequest = this._net.request(`https://musicbrainz.org/ws/2/isrc/${isrc}?fmt=json`);
+        isrcRequest.setHeader("User-Agent", USER_AGENT);
 
         isrcRequest.on("response", isrcResponse => {
           isrcResponse.on("data", isrcChunk => {
@@ -251,6 +257,7 @@ module.exports = class CiderListenbrainzBackend {
                   const result = json.recordings[0];
 
                   const recordingRequest = this._net.request(`https://musicbrainz.org/ws/2/recording/${result.id}?inc=artists&fmt=json`);
+                  recordingRequest.setHeader("User-Agent", USER_AGENT);
 
                   recordingRequest.on("response", recResponse => {
                     recResponse.on("data", recChunk => {
