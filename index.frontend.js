@@ -92,12 +92,23 @@ Vue.component("plugin.listenbrainz", {
             </label>
           </div>
         </div>
+        <div class="md-option-line" v-show="settings.enabled && settings.username != undefined">
+          <div class="md-option-segment">
+            {{ app.getLz('settings.header.debug') }}
+          </div>
+          <div class="md-option-segment md-option-segment_auto">
+            <label>
+              <input type="checkbox" switch v-model="settings.debug" />
+            </label>
+          </div>
+        </div>
       </div>
     </div>
   </div>
   `,
   data: () => ({
     settings: {
+      debug: false,
       delay: 50,
       enabled: false,
       filterLoop: false,

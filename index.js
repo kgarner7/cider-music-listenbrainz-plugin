@@ -54,24 +54,36 @@ module.exports = class CiderListenbrainzBackend {
           // ListenBrainz expects the start time in seconds
           this._listenStartSec = Math.floor(data.startTime / 1000);
 
-          const artist = await this._getPrimaryArtist(data.artistName);
+          const isrc = data.isrc.substring(data.isrc.length - 12);
 
-          // This forms the core of a payload for ListenBrainz
-          // https://listenbrainz.readthedocs.io/en/latest/users/json.htm
-          this._payload = {
-            track_metadata: {
-              additional_info: {
-                duration_ms: data.durationInMillis,
-                isrc: data.isrc,
-                music_service: "music.apple.com",
-                origin_url: data.url.appleMusic,
-                tracknumber: data.trackNumber
-              },
-              artist_name: artist,
-              release_name: data.albumName.replace(/ - Single| - EP/g, ''),
-              track_name: data.name
+          try {
+            // Attempt to lookup by ISRC first
+            this._payload = await this._lookupIsrc(isrc, data.url.appleMusic);
+          } catch (error) {
+            if (this._settings.debug) {
+              console.error("[ListenBrainz][%s]", isrc, error);
             }
-          };
+
+            const album = data.albumName.replace(/ - Single| - EP/g, '')
+            const artist = await this._getPrimaryArtist(data.artistName);
+
+            // This forms the core of a payload for ListenBrainz
+            // https://listenbrainz.readthedocs.io/en/latest/users/json.htm
+            this._payload = {
+              track_metadata: {
+                additional_info: {
+                  duration_ms: data.durationInMillis,
+                  isrc: data.isrc,
+                  music_service: "music.apple.com",
+                  origin_url: data.url.appleMusic,
+                  tracknumber: data.trackNumber
+                },
+                artist_name: artist,
+                release_name: album,
+                track_name: data.name
+              }
+            };
+          }
 
           this._scrobbled = false;
           // Reset custom variables to keep track of timing
@@ -221,6 +233,88 @@ module.exports = class CiderListenbrainzBackend {
     }
 
     request.end();
+  }
+
+  async _lookupIsrc(isrc, url) {
+    return new Promise((resolve, reject) => {
+      try {
+        // We do it in to requests because THE FIRST ONE DOESN'T RETURN RESULTS IN JSON IF YOU DO 
+        // &inc=artists (06/02/2022)
+        const isrcRequest = this._net.request(`https://musicbrainz.org/ws/2/isrc/${isrc}?fmt=json`);
+
+        isrcRequest.on("response", isrcResponse => {
+          isrcResponse.on("data", isrcChunk => {
+            try {
+              const json = JSON.parse(isrcChunk.toString("utf-8"));
+
+              if (json.error) {
+                reject(json.error);
+              } else {
+                try {
+                  const result = json.recordings[0];
+
+                  const recordingRequest = this._net.request(`https://musicbrainz.org/ws/2/recording/${result.id}?inc=artists&fmt=json`);
+
+                  recordingRequest.on("response", recResponse => {
+                    recResponse.on("data", recChunk => {
+                      try {
+                        const recJson = JSON.parse(recChunk.toString("utf-8"));
+
+                        if (recJson.error) {
+                          reject(json.error);
+                        } else {
+                          let artistNames = "";
+                          const artists = [];
+
+                          for (const artist of recJson["artist-credit"]) {
+                            artistNames += artist.name + artist.joinphrase;
+                            artists.push(artist["artist"].id);
+                          }
+
+                          resolve({
+                            track_metadata: {
+                              additional_info: {
+                                artist_mbids: artists,
+                                duration_ms: recJson.length,
+                                isrc: isrc,
+                                music_service: "music.apple.com",
+                                origin_url: url,
+                                recording_mbid: recJson.id,
+                              },
+                              artist_name: artistNames,
+                              track_name: recJson.title
+                            }
+                          })
+                        }
+                      } catch (error) {
+                        // Yay nesting!!!!!!!! (4)
+                        reject(error);
+                      }
+                    })
+                  })
+
+                  recordingRequest.on("error", reject);
+                  recordingRequest.end();
+                }
+                catch (error) {
+                  // I'm really paranoid now .-. (3)
+                  reject(error);
+                }
+              }
+            } catch (error) {
+              // We should never get here, but just in case.....
+              reject(error);
+            }
+          });
+        })
+
+        isrcRequest.on("error", reject);
+        isrcRequest.end();
+      } catch (error) {
+        // We should never get here (1)...
+        reject(error);
+      }
+    });
   }
 
   async _getPrimaryArtist(originalName) {
