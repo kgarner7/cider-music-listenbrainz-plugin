@@ -46,8 +46,8 @@ module.exports = class CiderListenbrainzBackend {
         }
       });
 
-      // Handle new tracks. Uses the Last.FM event, because the data is localized.
-      ipcMain.on("nowPlayingItemDidChangeLastFM", async (_event, data) => {
+      // Handle new tracks
+      ipcMain.on("nowPlayingItemDidChange", async (_event, data) => {
         if (!this._store.general.privateEnabled && this._settings.enabled && data.artistName) {
           // Save the ID; this will be used for later checks
           this._id = data.playParams.catalogId || data.playParams.id;
