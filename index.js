@@ -21,7 +21,6 @@ module.exports = class CiderListenbrainzBackend {
     this._timer = undefined;
 
     this._id = undefined;
-    this._listenStartSec = undefined;
     this._payload = {};
     this._scrobbled = false;
     this._startTime = 0;
@@ -51,8 +50,6 @@ module.exports = class CiderListenbrainzBackend {
         if (!this._store.general.privateEnabled && this._settings.enabled && data.artistName) {
           // Save the ID; this will be used for later checks
           this._id = data.playParams.catalogId || data.playParams.id;
-          // ListenBrainz expects the start time in seconds
-          this._listenStartSec = Math.floor(data.startTime / 1000);
 
           const isrc = data.isrc.substring(data.isrc.length - 12);
 
@@ -61,7 +58,7 @@ module.exports = class CiderListenbrainzBackend {
             this._payload = await this._lookupIsrc(isrc, data.url.appleMusic);
           } catch (error) {
             if (this._settings.debug) {
-              console.error("[ListenBrainz][%s]", isrc, error);
+              console.error("[ListenBrainz][%s][%s]", isrc, data.name, error);
             }
 
             const album = data.albumName.replace(/ - Single| - EP/g, '')
@@ -189,7 +186,7 @@ module.exports = class CiderListenbrainzBackend {
 
         const submission = {
           listen_type: "single", payload: [{
-            listened_at: this._listenStartSec, ...this._payload
+            listened_at: Math.floor(new Date().getTime() / 1000), ...this._payload
           }]
         };
 
