@@ -37,12 +37,20 @@ module.exports = class CiderListenbrainzBackend {
     // Handle Pause/Play Events. We want to keep track of the total time elapsed
     try {
       ipcMain.on("playbackStateDidChange", (_event, data) => {
-        if (!this._store.general.privateEnabled && this._settings.enabled && data.artistName) {
+        if (
+          !this._store.general.privateEnabled &&
+          this._settings.enabled &&
+          this._payload.track_metadata &&
+          data.artistName
+        ) {
           if (data.status) {
             this._startTime = data.startTime;
             this.scrobbleSong();
           } else {
-            if (this._timer) clearTimeout(this._timer);
+            if (this._timer) {
+              clearTimeout(this._timer);
+              this._timer = undefined;
+            }
             this._timeElapsedMs += data.startTime - this._startTime;
           }
         }
@@ -54,35 +62,66 @@ module.exports = class CiderListenbrainzBackend {
           // Save the ID; this will be used for later checks
           this._id = data.playParams.catalogId || data.playParams.id;
 
-          const isrc = data.isrc.substring(data.isrc.length - 12);
+          // This is available for Apple Music tracks
+          if (data.isrc) {
+            // Upper-case, because apparently it's sometimes not all uppercase
+            const isrc = data.isrc.substring(data.isrc.length - 12).toLocaleUpperCase();
 
-          try {
-            // Attempt to lookup by ISRC first
-            this._payload = await this._lookupIsrc(isrc, data.url.appleMusic);
-          } catch (error) {
-            if (this._settings.debug) {
-              console.error("[ListenBrainz][%s][%s]", isrc, data.name, error);
-            }
-
-            const album = data.albumName.replace(/ - Single| - EP/g, '')
-            const artist = await this._getPrimaryArtist(data.artistName);
-
-            // This forms the core of a payload for ListenBrainz
-            // https://listenbrainz.readthedocs.io/en/latest/users/json.htm
-            this._payload = {
-              track_metadata: {
-                additional_info: {
-                  duration_ms: data.durationInMillis,
-                  isrc: data.isrc,
-                  music_service: "music.apple.com",
-                  origin_url: data.url.appleMusic,
-                  tracknumber: data.trackNumber
-                },
-                artist_name: artist,
-                release_name: album,
-                track_name: data.name
+            try {
+              // Attempt to lookup by ISRC first
+              this._payload = await this._lookupIsrc(isrc, data.url.appleMusic);
+            } catch (error) {
+              if (this._settings.debug) {
+                console.error("[ListenBrainz][%s][%s]", isrc, data.name, error);
               }
-            };
+
+              const album = data.albumName.replace(/ - Single| - EP/g, '')
+              const artist = await this._getPrimaryArtist(data.artistName);
+
+              // This forms the core of a payload for ListenBrainz
+              // https://listenbrainz.readthedocs.io/en/latest/users/json.htm
+              this._payload = {
+                track_metadata: {
+                  additional_info: {
+                    duration_ms: data.durationInMillis,
+                    isrc: data.isrc,
+                    music_service: "music.apple.com",
+                    origin_url: data.url.appleMusic,
+                    tracknumber: data.trackNumber
+                  },
+                  artist_name: artist,
+                  release_name: album,
+                  track_name: data.name
+                }
+              };
+            }
+          } else {
+            // Local files have reduced metadata (and are currently given an id starting with ciderlocal)
+            if (data.playParams.id.startsWith("ciderlocal")) {
+              const album = data.albumName.replace(/ - Single| - EP/g, '');
+
+              this._payload = {
+                track_metadata: {
+                  additional_info: {
+                    duration_ms: data.durationInMillis,
+                    music_service: "music.apple.com",
+                    tracknumber: data.trackNumber
+                  },
+                  artist_name: data.albumName,
+                  release_name: album,
+                  track_name: data.name
+                }
+              };
+            } else {
+              // Otherwise, it's probably a podcast. This is unsupported
+              this._payload = {};
+
+              if (this._timer) {
+                clearTimeout(this._timer);
+                this._timer = undefined;
+              }
+              return;
+            }
           }
 
           this._scrobbled = false;
@@ -183,6 +222,7 @@ module.exports = class CiderListenbrainzBackend {
     // Set a timer for the remaining time.
     if (remainingTime >= 0) {
       this._timer = setTimeout(() => {
+        this._timer = undefined;
         if (!self._net || self._cachedId === this._id) return;
 
         this._scrobbled = true;
