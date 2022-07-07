@@ -70,11 +70,19 @@ module.exports = class CiderListenbrainzBackend {
             try {
               // Attempt to lookup by ISRC first
               this._payload = await this._lookupIsrc(isrc, data.url.appleMusic);
+
+              if (this._payload === null && this._settings.debug) {
+                console.info("[Plugin][ListenBrainz][%s][%s]: ISRC not found", isrc, data.name);
+              }
             } catch (error) {
               if (this._settings.debug) {
-                console.error("[ListenBrainz][%s][%s]", isrc, data.name, error);
+                console.error("[Plugin][ListenBrainz][%s][%s]", isrc, data.name, error);
               }
 
+              this._payload = null;
+            }
+
+            if (this._payload === null) {
               const album = data.albumName.replace(/ - Single| - EP/g, '')
               const artist = await this._getPrimaryArtist(data.artistName);
 
@@ -95,6 +103,8 @@ module.exports = class CiderListenbrainzBackend {
                 }
               };
             }
+
+
           } else {
             // Local files have reduced metadata (and are currently given an id starting with ciderlocal)
             if (data.playParams.id.startsWith("ciderlocal")) {
@@ -179,10 +189,14 @@ module.exports = class CiderListenbrainzBackend {
       // This seems to happen if you are prompted to log in and then press continue. In this case,
       // we should ignore the error
     }
+
+    console.info("[Plugin][ListenBrainz]: Ready");
   }
 
   onRendererReady(_win) {
-    this._env.utils.loadJSFrontend(join(this._env.dir, "index.frontend.js"))
+    this._env.utils.loadJSFrontend(join(this._env.dir, "index.frontend.js"));
+    console.info("[Plugin][ListenBrainz]: Renderer Ready");
+
   }
 
   updateNowPlayingSong() {
@@ -196,7 +210,7 @@ module.exports = class CiderListenbrainzBackend {
     this._submitRequest(submission, () => {
       self._cachedNowPlayingId = this._id;
     }, (error) => {
-      console.error("[ListenBrainz]", error);
+      console.error("[Plugin][ListenBrainz]: ", error);
     });
   }
 
@@ -234,12 +248,47 @@ module.exports = class CiderListenbrainzBackend {
         };
 
         this._submitRequest(submission, (_data) => {
-          self._cachedId = this._id;
+          self._cachedId = self._id;
         }, (error) => {
-          console.error("[ListenBrainz]", error);
+          self._cachedId = self._id;
+
+          if (error.msg) {
+            console.error("[Plugin][ListenBrainz]: %s (status code %d)", error.msg, error.code);
+
+            if (error.code === 503) {
+              self._scrobbleRecursive(submission);
+            }
+          } else {
+            console.error("[Plugin][ListenBrainz]: ", error);
+          }
         });
       }, remainingTime);
     }
+  }
+
+  _scrobbleRecursive(submission, depth = 1) {
+    if (depth === 5) {
+      console.error("[Plugin][ListenBrainz]: Attempted to scrobble 5 times, but the queue is full");
+      return;
+    }
+
+    const self = this;
+
+    setTimeout(() => {
+      self._submitRequest(submission, (_resp) => {
+        // Ok.
+      }, (error) => {
+        if (error.msg) {
+          console.error("[Plugin][ListenBrainz]: %s (status code %d)", error.msg, error.code);
+
+          if (error.code === 503) {
+            self._scrobbleRecursive(submission, depth + 1);
+          }
+        } else {
+          console.error("[Plugin][ListenBrainz]: ", error);
+        }
+      })
+    }, depth * 10_000)
   }
 
   _submitRequest(submission, onOk, onError, endPoint = "/1/submit-listens", method = "POST") {
@@ -261,7 +310,7 @@ module.exports = class CiderListenbrainzBackend {
         if (response.statusCode === 200) {
           onOk(respJson);
         } else {
-          onError(respJson.error);
+          onError({ msg: respJson.error, code: response.statusCode });
         }
       });
     });
@@ -280,69 +329,46 @@ module.exports = class CiderListenbrainzBackend {
   async _lookupIsrc(isrc, url) {
     return new Promise((resolve, reject) => {
       try {
-        // We do it in to requests because THE FIRST ONE DOESN'T RETURN RESULTS IN JSON IF YOU DO 
-        // &inc=artists (06/02/2022)
-        const isrcRequest = this._net.request(`https://musicbrainz.org/ws/2/isrc/${isrc}?fmt=json`);
-        isrcRequest.setHeader("User-Agent", USER_AGENT);
+        const request = this._net.request(`https://musicbrainz.org/ws/2/recording?query=isrc:${isrc}&fmt=json`);
+        request.setHeader("User-Agent", USER_AGENT);
 
-        isrcRequest.on("response", isrcResponse => {
-          isrcResponse.on("data", isrcChunk => {
+        request.on("response", response => {
+          let body = "";
+
+          response.on("end", () => {
             try {
-              const json = JSON.parse(isrcChunk.toString("utf-8"));
+              const json = JSON.parse(body);
 
               if (json.error) {
                 reject(json.error);
               } else {
-                try {
-                  const result = json.recordings[0];
+                if (json.count === 1) {
+                  const recording = json.recordings[0];
 
-                  const recordingRequest = this._net.request(`https://musicbrainz.org/ws/2/recording/${result.id}?inc=artists&fmt=json`);
-                  recordingRequest.setHeader("User-Agent", USER_AGENT);
+                  let artistNames = "";
+                  const artists = [];
 
-                  recordingRequest.on("response", recResponse => {
-                    recResponse.on("data", recChunk => {
-                      try {
-                        const recJson = JSON.parse(recChunk.toString("utf-8"));
+                  for (const artist of recording["artist-credit"]) {
+                    artistNames += artist.name + (artist.joinphrase || "");
+                    artists.push(artist["artist"].id);
+                  }
 
-                        if (recJson.error) {
-                          reject(json.error);
-                        } else {
-                          let artistNames = "";
-                          const artists = [];
-
-                          for (const artist of recJson["artist-credit"]) {
-                            artistNames += artist.name + artist.joinphrase;
-                            artists.push(artist["artist"].id);
-                          }
-
-                          resolve({
-                            track_metadata: {
-                              additional_info: {
-                                artist_mbids: artists,
-                                duration_ms: recJson.length,
-                                isrc: isrc,
-                                music_service: "music.apple.com",
-                                origin_url: url,
-                                recording_mbid: recJson.id,
-                              },
-                              artist_name: artistNames,
-                              track_name: recJson.title
-                            }
-                          })
-                        }
-                      } catch (error) {
-                        // Yay nesting!!!!!!!! (4)
-                        reject(error);
-                      }
-                    })
+                  resolve({
+                    track_metadata: {
+                      additional_info: {
+                        artist_mbids: artists,
+                        duration_ms: recording.length,
+                        isrc: isrc,
+                        music_service: "music.apple.com",
+                        origin_url: url,
+                        recording_mbid: recording.id,
+                      },
+                      artist_name: artistNames,
+                      track_name: recording.title
+                    }
                   })
-
-                  recordingRequest.on("error", reject);
-                  recordingRequest.end();
-                }
-                catch (error) {
-                  // I'm really paranoid now .-. (3)
-                  reject(error);
+                } else {
+                  resolve(null);
                 }
               }
             } catch (error) {
@@ -350,12 +376,17 @@ module.exports = class CiderListenbrainzBackend {
               reject(error);
             }
           });
+
+          // We may have multiple data chunks
+          response.on("data", chunk => {
+            body += chunk.toString("utf-8");
+          });
         })
 
-        isrcRequest.on("error", reject);
-        isrcRequest.end();
+        request.on("error", reject);
+        request.end();
       } catch (error) {
-        // We should never get here (1)...
+        // We should never get here...
         reject(error);
       }
     });
@@ -371,21 +402,23 @@ module.exports = class CiderListenbrainzBackend {
                     songs: ["artists"]
                 }
             });
-            if (!subMk) console.error('[ListenBrainz] Request failed: /v1/catalog/us/songs/${this._id}');
+            if (!subMk) console.error('[Plugin][ListenBrainz]: Request failed: /v1/catalog/us/songs/${this._id}');
             return subMk.data;
         })()
-    `).catch(console.error);
+    `).catch(error => {
+      console.error("[Plugin][ListenBrainz]: ", error);
+    });
     if (!res) return originalName;
 
     const data = res.data;
     if (!data.length) {
-      console.error(`[ListenBrainz] Unable to locate song with id of ${this._id}`)
+      console.error(`[Plugin][ListenBrainz]: Unable to locate song with id of ${this._id}`)
       return originalName;
     }
 
     const artists = res.data[0].relationships.artists.data;
     if (!artists.length) {
-      console.error(`[ListenBrainz] Unable to find artists related to the song with id of ${this._id}`)
+      console.error(`[Plugin][ListenBrainz]: Unable to find artists related to the song with id of ${this._id}`)
       return originalName;
     }
 
@@ -399,10 +432,12 @@ module.exports = class CiderListenbrainzBackend {
       const artistRes = await this._env.utils.getWindow().webContents.executeJavaScript(`
         (async () => {
             const subMk = await MusicKit.getInstance().api.v3.music("${primaryArtist.href}", {});
-            if (!subMk) console.error('[ListenBrainz] Request failed: ${primaryArtist.href}');
+            if (!subMk) console.error('[Plugin][ListenBrainz]: Request failed: ${primaryArtist.href}');
             return subMk.data;
         })()
-      `).catch(console.error);
+      `).catch(error => {
+        console.error("[Plugin][ListenBrainz]:", error);
+      });
 
       if (!artistRes) return originalName;
       return artistRes.data[0].attributes.name;
