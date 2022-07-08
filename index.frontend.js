@@ -1,9 +1,13 @@
+'use strict';
+
+var Vue$1 = Vue;
+
 const PLUGIN_NAME = "listenbrainz";
 const SETTINGS_KEY = "settings";
 
 function getLocalStorage() {
   try {
-    const data = localStorage.getItem(`plugin.${PLUGIN_NAME}.${SETTINGS_KEY}`);
+    const data = localStorage.getItem(`plugin.${PLUGIN_NAME}.${SETTINGS_KEY}`) || "null";
     return JSON.parse(data);
   } catch (error) {
     updateLocalStorage(null);
@@ -15,10 +19,9 @@ function updateLocalStorage(data) {
   localStorage.setItem(`plugin.${PLUGIN_NAME}.${SETTINGS_KEY}`, JSON.stringify(data));
 }
 
-let username = undefined;
-
+let username;
 // Adapted from https://github.com/ChaseIngebritson/Cider-Music-Recommendation-Plugin/blob/e4f9d06ebfc6182983333dabb7d7946d744db010/src/components/musicRecommendations-vue.js
-Vue.component("plugin.listenbrainz", {
+Vue$1.component("plugin.listenbrainz", {
   template: `
   <div class="content-inner settings-page">
     <div class="md-option-header mt-3">
@@ -116,28 +119,32 @@ Vue.component("plugin.listenbrainz", {
       removeFeatured: false,
       token: undefined,
       username: undefined
-    },
+    }
   }),
   watch: {
     settings: {
       deep: true,
+
       handler() {
         updateLocalStorage(this.settings);
         ipcRenderer.invoke(`plugin.${PLUGIN_NAME}.setting`, this.settings);
       }
+
     }
   },
-  async mounted() {
-    const settings = getLocalStorage('settings');
 
-    if (username) {
-      settings.username = username;
+  async mounted() {
+    const settings = getLocalStorage();
+
+    if (settings) {
+      if (username) {
+        settings.username = username;
+      }
+
+      this.settings = settings;
     }
 
-    if (settings) this.settings = settings;
-
     const self = this;
-
     ipcRenderer.on(`plugin.${PLUGIN_NAME}.name`, (_event, data) => {
       if (data.ok) {
         // For some reason the below line does not rerender. As a result, we force it.
@@ -148,27 +155,28 @@ Vue.component("plugin.listenbrainz", {
       }
     });
   }
+
 });
 
 class ListenbrainzFrontend {
   constructor() {
     const menuEntry = new CiderFrontAPI.Objects.MenuEntry();
     menuEntry.id = window.uuidv4();
-    menuEntry.name = "ListenBrainz Configuration"
+    menuEntry.name = "ListenBrainz Configuration";
+
     menuEntry.onClick = () => {
       app.appRoute("plugin/listenbrainz");
     };
 
     CiderFrontAPI.AddMenuEntry(menuEntry);
-
     ipcRenderer.invoke(`plugin.${PLUGIN_NAME}.setting`, getLocalStorage());
-
     ipcRenderer.once(`plugin.${PLUGIN_NAME}.name`, (_event, data) => {
       if (data.ok) {
         username = data.name;
       }
-    })
+    });
   }
+
 }
 
-const ListenbrainzPlugin = new ListenbrainzFrontend();
+new ListenbrainzFrontend();
