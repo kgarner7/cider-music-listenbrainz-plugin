@@ -1,10 +1,10 @@
 {
   "name": "cider-music-listenbrainz-plugin",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "main": "index.js",
   "scripts": {
     "build": "rollup -c --environment NODE_ENV:production",
-    "deploy": "yarn build && gh-pages -b main-test -d dist",
+    "deploy": "yarn build && gh-pages -b main -d dist",
     "start": "rollup -c -w --environment NODE_ENV:development",
     "test": "echo \"Error: no test specified\" && exit 1",
     "type-check": "tsc --noEmit",
