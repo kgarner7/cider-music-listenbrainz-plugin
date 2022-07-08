@@ -1,9 +1,44 @@
+import type { AuthResponse, Settings } from "./types";
+
+import Vue from "vue";
+
+declare const ipcRenderer: Electron.IpcRenderer;
+
+declare const app: {
+  appRoute(route: string): void;
+  getLz(text: string): string;
+}
+
+declare const bootbox: {
+  alert(msg: string): void;
+}
+
+declare namespace CiderFrontAPI {
+  namespace Objects {
+    class MenuEntry {
+      id: string;
+      name: string;
+      onClick: VoidFunction;
+
+      constructor();
+    }
+  }
+
+  function AddMenuEntry(menu: Objects.MenuEntry): void;
+}
+
+
+
+declare const window: {
+  uuidv4(): string;
+};
+
 const PLUGIN_NAME = "listenbrainz";
 const SETTINGS_KEY = "settings";
 
-function getLocalStorage() {
+function getLocalStorage(): Settings | null {
   try {
-    const data = localStorage.getItem(`plugin.${PLUGIN_NAME}.${SETTINGS_KEY}`);
+    const data = localStorage.getItem(`plugin.${PLUGIN_NAME}.${SETTINGS_KEY}`) || "null";
     return JSON.parse(data);
   } catch (error) {
     updateLocalStorage(null);
@@ -11,11 +46,15 @@ function getLocalStorage() {
   }
 }
 
-function updateLocalStorage(data) {
+function updateLocalStorage(data: Settings | null): void {
   localStorage.setItem(`plugin.${PLUGIN_NAME}.${SETTINGS_KEY}`, JSON.stringify(data));
 }
 
-let username = undefined;
+let username: string | undefined;
+
+interface ComponentSettings {
+  settings: Settings;
+}
 
 // Adapted from https://github.com/ChaseIngebritson/Cider-Music-Recommendation-Plugin/blob/e4f9d06ebfc6182983333dabb7d7946d744db010/src/components/musicRecommendations-vue.js
 Vue.component("plugin.listenbrainz", {
@@ -106,7 +145,7 @@ Vue.component("plugin.listenbrainz", {
     </div>
   </div>
   `,
-  data: () => ({
+  data: (): ComponentSettings => ({
     settings: {
       debug: false,
       delay: 50,
@@ -128,17 +167,19 @@ Vue.component("plugin.listenbrainz", {
     }
   },
   async mounted() {
-    const settings = getLocalStorage('settings');
+    const settings = getLocalStorage();
 
-    if (username) {
-      settings.username = username;
+    if (settings) {
+      if (username) {
+        settings.username = username;
+      }
+
+      this.settings = settings;
     }
-
-    if (settings) this.settings = settings;
 
     const self = this;
 
-    ipcRenderer.on(`plugin.${PLUGIN_NAME}.name`, (_event, data) => {
+    ipcRenderer.on(`plugin.${PLUGIN_NAME}.name`, (_event, data: AuthResponse) => {
       if (data.ok) {
         // For some reason the below line does not rerender. As a result, we force it.
         self.settings.username = data.name;
@@ -171,4 +212,4 @@ class ListenbrainzFrontend {
   }
 }
 
-const ListenbrainzPlugin = new ListenbrainzFrontend();
+new ListenbrainzFrontend();
