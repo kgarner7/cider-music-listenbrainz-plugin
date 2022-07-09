@@ -44,27 +44,470 @@ function _defineProperty(obj, key, value) {
   return obj;
 }
 
+const PLUGIN_NAME = "listenbrainz";
+let StorageType;
+
+(function (StorageType) {
+  StorageType["general"] = "General";
+  StorageType["listenbrainz"] = "ListenBrainz";
+  StorageType["libre"] = "LibreFM";
+  StorageType["maloja"] = "Maloja";
+})(StorageType || (StorageType = {}));
+
 const pkg = require("./package.json");
 
-const MAX_FRACTION_BEFORE_SCROBBLING = 0.8;
-const PLUGIN_NAME = "listenbrainz";
 const USER_AGENT = `${pkg.name}/${pkg.version} { ${pkg.repository.url} }`;
 
-async function sleep(timeout_ms) {
-  return new Promise(resolve => {
-    setTimeout(() => resolve, timeout_ms);
-  });
+class BaseProvider {
+  static init(env, net) {
+    this.env = env;
+    this.net = net;
+  }
+
+  constructor(provider) {
+    _defineProperty(this, "provider", void 0);
+
+    _defineProperty(this, "settings", void 0);
+
+    _defineProperty(this, "urlencoded", false);
+
+    this.settings = {
+      enabled: false,
+      session: null,
+      token: null,
+      url: null,
+      username: null
+    };
+    this.provider = provider;
+    electron.ipcMain.handle(`plugin.${PLUGIN_NAME}.${this.provider}`, (_event, settings) => {
+      this.update(settings);
+    });
+  }
+
+  enabled() {
+    return this.settings.enabled && this.settings.username !== undefined;
+  }
+
+  async getAuthToken() {
+    throw new Error("This function must be overridden");
+  }
+
+  scrobbleSong(_payload, _scrobbledAt) {
+    throw new Error("This function must be overridden");
+  }
+
+  updateListening(_payload) {
+    throw new Error("This function must be overridden");
+  }
+
+  update(_settings) {
+    throw new Error("This function must be overridden");
+  }
+
+  async authenticate() {
+    try {
+      let auth;
+
+      try {
+        auth = await this.timeoutPromise(this.auth());
+      } catch (error) {
+        auth = {
+          ok: false,
+          error: error.message
+        };
+      }
+
+      BaseProvider.env.utils.getWindow().webContents.send(`plugin.${PLUGIN_NAME}.${this.provider}.name`, auth);
+      this.settings.username = auth.ok ? auth.username : null;
+      this.settings.session = auth.ok ? auth.key || null : null;
+    } catch (error) {
+      // We should never get here, but just in case.
+      console.error("[Plugin][%s]: Error when authenticating ", error);
+    }
+  }
+
+  async auth() {
+    throw new Error("This function must be overridden");
+  }
+
+  getApiUrl() {
+    throw new Error("This function must be overridden");
+  }
+
+  static logError(error) {
+    if (!error.net) {
+      console.error("[Plugin][%s]: %s (status code %d)", PLUGIN_NAME, error.msg, error.code);
+    } else {
+      console.error("[Plugin][%s]: ", PLUGIN_NAME, error.error);
+    }
+  }
+
+  async timeoutPromise(promise, timeoutMs = BaseProvider.TIMEOUT_MS) {
+    return new Promise((resolve, reject) => {
+      const timeoutId = setTimeout(() => {
+        reject(new Error(`Timed out after ${timeoutMs} ms`));
+      }, timeoutMs);
+      promise.then(res => {
+        clearTimeout(timeoutId);
+        resolve(res);
+      }).catch(error => {
+        clearTimeout(timeoutId);
+        reject(error);
+      });
+    });
+  }
+
+  async sendRequest(endpoint, jsonBody, method = "POST") {
+    return new Promise((resolve, reject) => {
+      const request = BaseProvider.net.request({
+        url: `${this.getApiUrl()}/${endpoint}`,
+        method: method
+      });
+
+      if (this.provider !== StorageType.libre) {
+        request.setHeader("Authorization", `Token ${this.settings.token}`);
+      }
+
+      request.setHeader("User-Agent", USER_AGENT);
+      request.on("response", response => {
+        let body = "";
+        response.on("end", () => {
+          try {
+            const respJson = JSON.parse(body); // A response is only OK if it has HTTP code 200.
+
+            if (response.statusCode === 200) {
+              resolve(respJson);
+            } else {
+              reject({
+                code: response.statusCode,
+                net: false,
+                msg: respJson.error
+              });
+            }
+          } catch (error) {
+            reject({
+              error: error,
+              net: true
+            });
+          }
+        });
+        response.on("data", chunk => {
+          body += chunk.toString("utf-8");
+        });
+      });
+      request.on("error", error => {
+        reject({
+          error,
+          net: true
+        });
+      }); // If we have a body (e.g., not validate-token), send that
+
+      if (jsonBody) {
+        if (this.urlencoded) {
+          request.setHeader("Content-Type", "application/x-www-form-urlencoded");
+          request.write(new URLSearchParams(jsonBody).toString(), "utf-8");
+        } else {
+          request.setHeader("Content-Type", "application/json");
+          request.write(JSON.stringify(jsonBody), "utf-8");
+        }
+      }
+
+      request.end();
+    });
+  }
+
 }
 
-function logError(error) {
-  if (!error.net) {
-    console.error("[Plugin][ListenBrainz]: %s (status code %d)", error.msg, error.code);
-  } else {
-    console.error("[Plugin][ListenBrainz]: ", error.error);
-  }
-} // Adapted heavily from https://github.com/ciderapp/Cider/blob/dfd3fe6271f8328e3530bc7bc89d60c2f9536b87/src/main/plugins/lastfm.ts
-// In particular, getPrimaryArtist is virtually the same
+_defineProperty(BaseProvider, "TIMEOUT_MS", 10_000);
 
+_defineProperty(BaseProvider, "env", void 0);
+
+_defineProperty(BaseProvider, "net", void 0);
+
+class ListenBrainzProvider extends BaseProvider {
+  constructor(provider) {
+    super(provider);
+  }
+  /** @override */
+
+
+  getApiUrl() {
+    if (this.provider === StorageType.listenbrainz) {
+      return this.settings.url || "https://api.listenbrainz.org";
+    } else {
+      if (this.settings.url !== undefined) {
+        return `${this.settings.url}/apis/listenbrainz`;
+      } else {
+        return undefined;
+      }
+    }
+  }
+  /** @override */
+
+
+  scrobbleSong(payload, scrobbledAt) {
+    const submission = {
+      listen_type: "single",
+      payload: [_objectSpread2({
+        listened_at: Math.floor(scrobbledAt.getTime() / 1000)
+      }, payload)]
+    };
+    new Promise(async resolve => {
+      for (let tries = 1; tries <= 5; tries++) {
+        try {
+          await this.timeoutPromise(this.sendRequest("1/submit-listens", submission));
+        } catch (error) {
+          const err = error;
+          BaseProvider.logError(err);
+
+          if (err.net || err.code !== 503) {
+            break;
+          } // Sleep for 10 seconds * how many tries we've made
+
+
+          await this.sleep(10_000 * tries);
+        }
+      }
+
+      resolve();
+    }).then(() => {}).catch(error => {
+      console.error("[Plugin][%s]: ", PLUGIN_NAME, error);
+    });
+  }
+  /** @override */
+
+
+  updateListening(payload) {
+    if (this.provider === StorageType.maloja) {
+      // Maloja does not support now playing
+      return;
+    } else {
+      const submission = {
+        listen_type: "playing_now",
+        payload: [payload]
+      };
+      this.timeoutPromise(this.sendRequest("/1/submit-listens", submission)).catch(BaseProvider.logError);
+    }
+  }
+  /** @override */
+
+
+  update(settings) {
+    const needsAuth = this.settings.token !== settings.token || this.settings.url !== settings.url;
+    this.settings = settings;
+
+    if (needsAuth && this.settings.token && (this.provider === StorageType.listenbrainz || this.settings.url)) {
+      this.settings.username = null;
+      this.authenticate();
+    }
+  }
+
+  async auth() {
+    try {
+      const data = await this.timeoutPromise(this.sendRequest("1/validate-token", undefined, "GET"));
+
+      if (data.valid) {
+        return {
+          ok: true,
+          username: data.user_name
+        };
+      } else {
+        return {
+          ok: false,
+          error: data.message
+        };
+      }
+    } catch (error) {
+      const reqError = error;
+
+      if (reqError.net) {
+        return {
+          ok: false,
+          error: reqError.error.message
+        };
+      } else {
+        return {
+          ok: false,
+          error: reqError.msg
+        };
+      }
+    }
+  }
+
+  async sleep(timeInMs) {
+    return new Promise(resolve => {
+      setTimeout(() => resolve, timeInMs);
+    });
+  }
+
+}
+
+// One minute
+const CONNECTIVITY_TIMEOUT = 60_000;
+
+function isLibreError(data) {
+  return (typeof data.error === "string" || typeof data.error === "number") && typeof data.message === "string";
+}
+
+class LibreFMProvider extends BaseProvider {
+  constructor() {
+    super(StorageType.libre);
+
+    _defineProperty(this, "connectTimer", void 0);
+
+    this.urlencoded = true;
+    electron.ipcMain.handle(`plugin.${PLUGIN_NAME}.${StorageType.libre}.token`, async () => {
+      return this.getAuthToken();
+    });
+  }
+
+  getApiUrl() {
+    return "https://libre.fm";
+  }
+
+  async getAuthToken() {
+    try {
+      const data = await this.timeoutPromise(this.sendRequest("2.0?method=auth.getToken&format=json"));
+
+      if (isLibreError(data)) {
+        return {
+          ok: false,
+          msg: data.message
+        };
+      } else {
+        const token = data.token;
+        this.settings.token = token;
+        if (this.connectTimer) clearInterval(this.connectTimer);
+        this.connectTimer = setTimeout(() => {
+          this.authenticate();
+        }, CONNECTIVITY_TIMEOUT);
+        return {
+          ok: true,
+          token,
+          key: this.apiKey()
+        };
+      }
+    } catch (error) {
+      return {
+        ok: false,
+        msg: error.message
+      };
+    }
+  }
+
+  scrobbleSong(payload, scrobbledAt) {
+    const submission = new URLSearchParams({
+      method: "track.scrobble",
+      track: payload.track_metadata.track_name,
+      artist: payload.track_metadata.artist_name,
+      sk: this.settings.session,
+      format: "json",
+      mbid: payload.track_metadata.additional_info.recording_mbid ?? "",
+      timestamp: Math.floor(scrobbledAt.getTime() / 1000).toString()
+    });
+    this.timeoutPromise(this.sendRequest("2.0/", submission)).then(() => {}).catch(error => {
+      console.error("[Plugin][%s]", PLUGIN_NAME, error);
+    });
+  }
+
+  updateListening(payload) {
+    const submission = new URLSearchParams({
+      method: "track.updatenowplaying",
+      track: payload.track_metadata.track_name,
+      artist: payload.track_metadata.artist_name,
+      sk: this.settings.session,
+      format: "json",
+      mbid: payload.track_metadata.additional_info.recording_mbid ?? ""
+    });
+    this.timeoutPromise(this.sendRequest("2.0/", submission.toString())).then(() => {}).catch(error => {
+      console.error("[Plugin][%s]", PLUGIN_NAME, error);
+    });
+  }
+
+  update(settings) {
+    // If we have no session, then either we just started, or we are attempting to authenticate.
+    if (!this.settings.session) {
+      // Only update the username when we lack a session; if we have one, we know it is valid
+      if (this.settings.username !== settings.username) {
+        this.settings.username = settings.username;
+      }
+
+      this.settings.enabled = settings.enabled;
+
+      if (settings.session) {
+        this.settings.session = settings.session;
+      } else if (this.settings.token) {
+        this.settings.username = null;
+        this.authenticate();
+      }
+    } else {
+      if (!settings.session) {
+        this.settings.enabled = false;
+        this.settings.session = null;
+        this.settings.token = null;
+        this.settings.username = null;
+      } else {
+        this.settings.enabled = settings.enabled;
+      }
+    }
+  }
+
+  async auth() {
+    if (this.connectTimer) {
+      clearInterval(this.connectTimer);
+      this.connectTimer = undefined;
+    }
+
+    try {
+      const search = new URLSearchParams({
+        format: "json",
+        token: this.settings.token,
+        api_key: this.apiKey(),
+        method: "auth.getSession"
+      });
+      const data = await this.timeoutPromise(this.sendRequest(`2.0?${search.toString()}`, undefined, "GET"));
+
+      if (isLibreError(data)) {
+        this.settings.enabled = false;
+        return {
+          ok: false,
+          error: data.message
+        };
+      } else {
+        this.settings.session = data.session.key;
+        this.settings.username = data.session.name;
+        return {
+          ok: true,
+          key: data.session.key,
+          username: data.session.name
+        };
+      }
+    } catch (error) {
+      this.settings.enabled = false;
+      const reqError = error;
+
+      if (reqError.net) {
+        return {
+          ok: false,
+          error: reqError.error.message
+        };
+      } else {
+        return {
+          ok: false,
+          error: reqError.msg
+        };
+      }
+    }
+  }
+
+  apiKey() {
+    return "Z9YwDsJm3EFauHkuLNPnTNN2DUv25SP7rxeAQxsn";
+  }
+
+}
+
+const MAX_FRACTION_BEFORE_SCROBBLING = 0.9; // Adapted heavily from https://github.com/ciderapp/Cider/blob/dfd3fe6271f8328e3530bc7bc89d60c2f9536b87/src/main/plugins/lastfm.ts
+// In particular, getPrimaryArtist is virtually the same
 
 class CiderListenbrainzBackend {
   constructor(env) {
@@ -74,15 +517,13 @@ class CiderListenbrainzBackend {
 
     _defineProperty(this, "net", void 0);
 
+    _defineProperty(this, "providers", void 0);
+
     _defineProperty(this, "settings", {
       debug: false,
       delay: 50,
-      enabled: false,
       filterLoop: false,
-      nowPlaying: false,
-      removeFeatured: false,
-      token: undefined,
-      username: undefined
+      nowPlaying: false
     });
 
     _defineProperty(this, "cachedNowPlayingId", void 0);
@@ -110,11 +551,17 @@ class CiderListenbrainzBackend {
       net
     } = require("electron");
 
-    this.net = net; // Handle Pause/Play Events. We want to keep track of the total time elapsed
+    this.net = net;
+    this.providers = {
+      librefm: new LibreFMProvider(),
+      listenbrainz: new ListenBrainzProvider(StorageType.listenbrainz),
+      maloja: new ListenBrainzProvider(StorageType.maloja)
+    };
+    BaseProvider.init(this.env, this.net); // Handle Pause/Play Events. We want to keep track of the total time elapsed
 
     try {
       electron.ipcMain.on("playbackStateDidChange", (_event, data) => {
-        if (!this.store.general.privateEnabled && this.settings.enabled && this.payload?.track_metadata && data.artistName) {
+        if (!this.store.general.privateEnabled && this.enabled() && this.payload?.track_metadata && data.artistName) {
           if (data.status) {
             this.startTime = data.startTime;
             this.scrobbleSong();
@@ -130,7 +577,7 @@ class CiderListenbrainzBackend {
       }); // Handle new tracks
 
       electron.ipcMain.on("nowPlayingItemDidChange", async (_event, data) => {
-        if (!this.store.general.privateEnabled && this.settings.enabled && data.artistName) {
+        if (!this.store.general.privateEnabled && this.enabled() && data.artistName) {
           // Save the ID; this will be used for later checks
           this.id = data.playParams.catalogId || data.playParams.id; // This is available for Apple Music tracks
 
@@ -143,19 +590,18 @@ class CiderListenbrainzBackend {
               this.payload = await this.lookupIsrc(isrc, data.url.appleMusic);
 
               if (!this.payload && this.settings.debug) {
-                console.info("[Plugin][ListenBrainz][%s][%s]: ISRC not found", isrc, data.name);
+                console.info("[Plugin][%s][%s][%s]: ISRC not found", PLUGIN_NAME, isrc, data.name);
               }
             } catch (error) {
               if (this.settings.debug) {
-                console.error("[Plugin][ListenBrainz][%s][%s]", isrc, data.name, error);
+                console.error("[Plugin][%s][%s][%s]", PLUGIN_NAME, isrc, data.name, error);
               }
 
               this.payload = undefined;
             }
 
             if (!this.payload) {
-              const album = data.albumName.replace(/ - Single| - EP/g, '');
-              const artist = await this.getPrimaryArtist(data.artistName); // This forms the core of a payload for ListenBrainz
+              const album = data.albumName.replace(/ - Single| - EP/g, ''); // This forms the core of a payload for ListenBrainz
               // https://listenbrainz.readthedocs.io/en/latest/users/json.htm
 
               this.payload = {
@@ -167,7 +613,7 @@ class CiderListenbrainzBackend {
                     origin_url: data.url.appleMusic,
                     tracknumber: data.trackNumber
                   },
-                  artist_name: artist,
+                  artist_name: data.artistName,
                   release_name: album,
                   track_name: data.name
                 }
@@ -214,43 +660,14 @@ class CiderListenbrainzBackend {
           }
 
           if (this.settings.nowPlaying) {
-            await this.updateNowPlayingSong();
+            this.updateNowPlayingSong();
           }
 
           this.scrobbleSong();
         }
-      }); // Handle setting changes from the frontend.
-
-      electron.ipcMain.handle(`plugin.${PLUGIN_NAME}.setting`, async (_event, settings) => {
-        if (!settings) return;
-
-        if (settings.delay) {
-          settings.delay = settings.delay;
-        } // If the token changed, try to validate it.
-
-
-        const changed = this.settings.token !== settings.token;
+      });
+      electron.ipcMain.handle(`plugin.${PLUGIN_NAME}.${StorageType.general}`, (_event, settings) => {
         this.settings = settings;
-
-        if (changed && this.settings.token) {
-          // https://listenbrainz.readthedocs.io/en/latest/users/api/core.html (validate-token API)
-          try {
-            const data = await this.submitRequest(undefined, "/1/validate-token", "GET");
-            const message = data.valid ? {
-              ok: true,
-              name: data.user_name
-            } : {
-              ok: false,
-              error: data.message
-            };
-            this.env.utils.getWindow().webContents.send(`plugin.${PLUGIN_NAME}.name`, message);
-          } catch (error) {
-            this.env.utils.getWindow().webContents.send(`plugin.${PLUGIN_NAME}.name`, {
-              ok: false,
-              error: error
-            });
-          }
-        }
       });
     } catch (_ignored) {// An error should only fire if we attempt to handle a second time.
       // This seems to happen if you are prompted to log in and then press continue. In this case,
@@ -265,18 +682,24 @@ class CiderListenbrainzBackend {
     console.info("[Plugin][ListenBrainz]: Renderer Ready");
   }
 
-  async updateNowPlayingSong() {
-    if (!this.net || this.cachedNowPlayingId === this.id || !this.payload) return;
-    const submission = {
-      listen_type: "playing_now",
-      payload: [this.payload]
-    };
+  enabled() {
+    for (const provider of Object.values(this.providers)) {
+      if (provider.enabled()) {
+        return true;
+      }
+    }
 
-    try {
-      await this.submitRequest(submission);
-      this.cachedNowPlayingId = this.id;
-    } catch (error) {
-      logError(error);
+    return false;
+  }
+
+  updateNowPlayingSong() {
+    if (!this.net || this.cachedNowPlayingId === this.id || !this.payload) return;
+    const payload = this.payload;
+
+    for (const provider of Object.values(this.providers)) {
+      if (provider.enabled()) {
+        provider.updateListening(payload);
+      }
     }
   }
 
@@ -292,91 +715,25 @@ class CiderListenbrainzBackend {
 
     if (remainingTime < 0 && !this.scrobbled) {
       remainingTime = 0;
+    } else if (this.scrobbled) {
+      remainingTime = -1;
     } // Set a timer for the remaining time.
 
 
     if (remainingTime >= 0) {
-      self.timer = setTimeout(async () => {
+      self.timer = setTimeout(() => {
         self.timer = undefined;
         if (!self.net || self.cachedId === this.id) return;
         self.scrobbled = true;
-        const submission = {
-          listen_type: "single",
-          payload: [_objectSpread2({
-            listened_at: Math.floor(new Date().getTime() / 1000)
-          }, payload)]
-        };
+        const scrobbleTime = new Date();
 
-        for (let tries = 1; tries <= 5; tries++) {
-          try {
-            await self.submitRequest(submission);
-            self.cachedId = self.id;
-          } catch (error) {
-            let err = error;
-            logError(err);
-
-            if (err.net || err.code !== 503) {
-              break;
-            } // Sleep for 10 seconds * how many tries we've made
-
-
-            await sleep(10_000 * tries);
+        for (const provider of Object.values(self.providers)) {
+          if (provider.enabled()) {
+            provider.scrobbleSong(payload, scrobbleTime);
           }
         }
       }, remainingTime);
     }
-  }
-
-  async submitRequest(submission, endPoint = "/1/submit-listens", method = "POST") {
-    return new Promise((resolve, reject) => {
-      const request = this.net.request({
-        method: method,
-        protocol: "https:",
-        host: "api.listenbrainz.org",
-        path: endPoint
-      });
-      request.setHeader("Authorization", `Token ${this.settings.token}`);
-      request.setHeader("User-Agent", USER_AGENT);
-      request.on("response", response => {
-        let body = "";
-        response.on("end", () => {
-          try {
-            const respJson = JSON.parse(body); // A response is only OK if it has HTTP code 200.
-
-            if (response.statusCode === 200) {
-              resolve(respJson);
-            } else {
-              reject({
-                code: response.statusCode,
-                net: false,
-                msg: respJson.error
-              });
-            }
-          } catch (error) {
-            reject({
-              error: error,
-              net: true
-            });
-          }
-        });
-        response.on("data", chunk => {
-          body += chunk.toString("utf-8");
-        });
-      });
-      request.on("error", error => {
-        reject({
-          error,
-          net: true
-        });
-      }); // If we have a JSON body (e.g., not validate-token), send that
-
-      if (submission) {
-        request.setHeader("Content-Type", "application/json");
-        request.write(JSON.stringify(submission), "utf-8");
-      }
-
-      request.end();
-    });
   }
 
   async lookupIsrc(isrc, url) {
@@ -438,56 +795,6 @@ class CiderListenbrainzBackend {
         reject(error);
       }
     });
-  }
-
-  async getPrimaryArtist(originalName) {
-    if (!this.settings.removeFeatured || !this.id) return originalName;
-    const res = await this.env.utils.getWindow().webContents.executeJavaScript(`
-        (async () => {
-            const subMk = await MusicKit.getInstance().api.v3.music("/v1/catalog/" + MusicKit.getInstance().storefrontId + "/songs/${this.id}", {
-                include: {
-                    songs: ["artists"]
-                }
-            });
-            if (!subMk) console.error('[Plugin][ListenBrainz]: Request failed: /v1/catalog/us/songs/${this.id}');
-            return subMk.data;
-        })()
-    `).catch(error => {
-      console.error("[Plugin][ListenBrainz]: ", error);
-    });
-    if (!res) return originalName;
-    const data = res.data;
-
-    if (!data.length) {
-      console.error(`[Plugin][ListenBrainz]: Unable to locate song with id of ${this.id}`);
-      return originalName;
-    }
-
-    const artists = res.data[0].relationships.artists.data;
-
-    if (!artists.length) {
-      console.error(`[Plugin][ListenBrainz]: Unable to find artists related to the song with id of ${this.id}`);
-      return originalName;
-    }
-
-    const primaryArtist = artists[0]; // Contrary to the LastFM plugin, it appears that the name might not be included in
-    // the attributes. In this case, try to fetch the artist manually
-
-    if (primaryArtist.attributes && primaryArtist.attributes.name) {
-      return primaryArtist.attributes.name;
-    } else {
-      const artistRes = await this.env.utils.getWindow().webContents.executeJavaScript(`
-        (async () => {
-            const subMk = await MusicKit.getInstance().api.v3.music("${primaryArtist.href}", {});
-            if (!subMk) console.error('[Plugin][ListenBrainz]: Request failed: ${primaryArtist.href}');
-            return subMk.data;
-        })()
-      `).catch(error => {
-        console.error("[Plugin][ListenBrainz]:", error);
-      });
-      if (!artistRes) return originalName;
-      return artistRes.data[0].attributes.name;
-    }
   }
 
 }

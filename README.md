@@ -1,7 +1,6 @@
-# Cider ListenBrainz Scrobbler
+# Cider Libre.fm/ListenBrainz/Maloja Scrobbler
 
-This plugin allows you to scrobble tracks to ListenBrainz. 
-To use it, you must get a [ListenBrainz Token](https://listenbrainz.org/profile/).
+This plugin allows you to scrobble tracks to Libre.fm, ListenBrainz and/or Maloja. 
 
 **This plugin is not affiliated with Cider Collective**
 
@@ -12,7 +11,7 @@ As an example, if you have a track that is 4 minutes, and you set `ListenBrainz 
 It does not matter _how_ you listen to it; you can start at the beginning, jump forward, and then jump back.
 Notably, if you pause the currently played song, it will **not** be scrobbled.
 
-Like with LastFM, you can toggle now playing, filtering looped tracks, and remove featured artists from titles (where available).
+Like with LastFM, you can toggle whether to show the current track as "Now Playing" (this excludes Maloja), and whether to filter looped tracks.
 
 ## Installation
 The following assumes that Cider is installed
@@ -22,6 +21,28 @@ The following assumes that Cider is installed
 4. Search for "Cider ListenBrainz Scrobbler" and install
 
 ## Usage
-1. Open Cider > Plugins > ListenBrainz Configuration
-2. Enter your [ListenBrainz Token](https://listenbrainz.org/profile/). Once provided, you should see your username.
-3. Enable ListenBrainz, and change any other settings you like.
+1. Open Cider > Plugin > Libre.FM, ListenBrainz, Maloja Configuration
+2. Configure your connections.
+    1. [ListenBrainz](https://listenbrainz.org): get your token from https://listenbrainz.org/profile/ (or click on the link shown). 
+    If using a custom URL, please provide the base path, so that it can resolve the API.
+    2. [Libre.FM](https://libre.fm): Click connect, and log in. Once authorized, you can either enable it, or wait 60 seconds.
+    3. [Maloja](https://github.com/krateng/maloja). Provide any one of your API keys, as well as the base url for your service. This **should not** include paths such as `/apis/listenbrainz`.
+3. Enable as many of the services as you wish, and configure other settings in General.
+
+## Development
+The main code branch is `main-dev`. If you wish to make changes, you should work on this branch.
+
+### Setup
+This project uses yarn to build. 
+You should make sure to install this first. 
+Then run ```yarn``` to install all of the dependencies (these are only used for development/type checking).
+You should also copy `.env.example` to `.env`. 
+If you are on Linux, set `FLATPAK` to either `true` if you are using Flatpak. Otherwise, you can leave it as false.
+
+### Building
+If you want to test your changes, you should run `yarn start`. 
+This will watch for changes, and attempt to copy your files to the correct directory.
+For type-checking, you should also run `yarn type-check:watch`.
+
+## Language
+I have reused as much of Cider's built-in translation as possible, but there are some parts that I have added that are ony in English (and some of the services return data in English).
