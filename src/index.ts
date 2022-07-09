@@ -2,74 +2,17 @@ import { join } from "path";
 
 import { ipcMain } from "electron";
 
-import type { AuthResponse, Settings } from "./types";
+import type { Provider } from "./types";
 
-const pkg = require("./package.json");
+import { ListenBrainzProvider } from "./providers/listenbrainz";
+import { PLUGIN_NAME, StorageType } from "./consts";
+import { BaseProvider } from "./providers/baseProvider";
+import { Payload } from "./providers/types";
+import { LibreFMProvider } from "./providers/librefm";
+import { USER_AGENT } from "./consts-backend";
+import type { GeneralData } from "./components/util";
 
-const MAX_FRACTION_BEFORE_SCROBBLING = 0.8;
-const PLUGIN_NAME = "listenbrainz";
-
-const USER_AGENT = `${pkg.name}/${pkg.version} { ${pkg.repository.url} }`
-
-interface Payload {
-  track_metadata: {
-    additional_info: {
-      artist_mbids?: string[];
-      duration_ms: number;
-      isrc?: string;
-      music_service?: "music.apple.com";
-      origin_url?: string;
-      recording_mbid?: string;
-      tracknumber?: number;
-    };
-    artist_name: string;
-    release_name?: string;
-    track_name: string;
-  }
-}
-
-interface NowPlayingSubmission {
-  listen_type: "playing_now";
-  payload: [Payload];
-}
-
-interface PayloadForSubmission extends Payload {
-  listened_at: number;
-}
-
-interface SingleSubmission {
-  listen_type: "single";
-  payload: [PayloadForSubmission];
-}
-
-type Submission = NowPlayingSubmission | SingleSubmission;
-
-interface NetError {
-  error: Error;
-  net: true;
-}
-
-interface HTTPError {
-  code: number;
-  net: false;
-  msg: string;
-}
-
-type RequestError = NetError | HTTPError;
-
-async function sleep(timeout_ms: number): Promise<void> {
-  return new Promise(resolve => {
-    setTimeout(() => resolve, timeout_ms);
-  })
-}
-
-function logError(error: RequestError): void {
-  if (!error.net) {
-    console.error("[Plugin][ListenBrainz]: %s (status code %d)", error.msg, error.code);
-  } else {
-    console.error("[Plugin][ListenBrainz]: ", error.error);
-  }
-}
+const MAX_FRACTION_BEFORE_SCROBBLING = 0.9;
 
 // Adapted heavily from https://github.com/ciderapp/Cider/blob/dfd3fe6271f8328e3530bc7bc89d60c2f9536b87/src/main/plugins/lastfm.ts
 // In particular, getPrimaryArtist is virtually the same
@@ -78,15 +21,15 @@ export default class CiderListenbrainzBackend {
   private store: Record<string, any>;
   private net?: Electron.Net;
 
-  private settings: Settings = {
+  private providers!: {
+    [key in Provider]: BaseProvider
+  };
+
+  private settings: GeneralData = {
     debug: false,
     delay: 50,
-    enabled: false,
     filterLoop: false,
-    nowPlaying: false,
-    removeFeatured: false,
-    token: undefined,
-    username: undefined
+    nowPlaying: false
   };
 
   private cachedNowPlayingId?: string;
@@ -109,12 +52,20 @@ export default class CiderListenbrainzBackend {
     const { net } = require("electron");
     this.net = net;
 
+    this.providers = {
+      librefm: new LibreFMProvider(),
+      listenbrainz: new ListenBrainzProvider(StorageType.listenbrainz),
+      maloja: new ListenBrainzProvider(StorageType.maloja)
+    };
+
+    BaseProvider.init(this.env, this.net);
+
     // Handle Pause/Play Events. We want to keep track of the total time elapsed
     try {
       ipcMain.on("playbackStateDidChange", (_event, data) => {
         if (
           !this.store.general.privateEnabled &&
-          this.settings.enabled &&
+          this.enabled() &&
           this.payload?.track_metadata &&
           data.artistName
         ) {
@@ -133,7 +84,7 @@ export default class CiderListenbrainzBackend {
 
       // Handle new tracks
       ipcMain.on("nowPlayingItemDidChange", async (_event, data) => {
-        if (!this.store.general.privateEnabled && this.settings.enabled && data.artistName) {
+        if (!this.store.general.privateEnabled && this.enabled() && data.artistName) {
           // Save the ID; this will be used for later checks
           this.id = data.playParams.catalogId || data.playParams.id;
 
@@ -147,11 +98,11 @@ export default class CiderListenbrainzBackend {
               this.payload = await this.lookupIsrc(isrc, data.url.appleMusic);
 
               if (!this.payload && this.settings.debug) {
-                console.info("[Plugin][ListenBrainz][%s][%s]: ISRC not found", isrc, data.name);
+                console.info("[Plugin][%s][%s][%s]: ISRC not found", PLUGIN_NAME, isrc, data.name);
               }
             } catch (error) {
               if (this.settings.debug) {
-                console.error("[Plugin][ListenBrainz][%s][%s]", isrc, data.name, error);
+                console.error("[Plugin][%s][%s][%s]", PLUGIN_NAME, isrc, data.name, error);
               }
 
               this.payload = undefined;
@@ -159,7 +110,6 @@ export default class CiderListenbrainzBackend {
 
             if (!this.payload) {
               const album = data.albumName.replace(/ - Single| - EP/g, '')
-              const artist = await this.getPrimaryArtist(data.artistName);
 
               // This forms the core of a payload for ListenBrainz
               // https://listenbrainz.readthedocs.io/en/latest/users/json.htm
@@ -172,7 +122,7 @@ export default class CiderListenbrainzBackend {
                     origin_url: data.url.appleMusic,
                     tracknumber: data.trackNumber
                   },
-                  artist_name: artist,
+                  artist_name: data.artistName,
                   release_name: album,
                   track_name: data.name
                 }
@@ -222,45 +172,15 @@ export default class CiderListenbrainzBackend {
           }
 
           if (this.settings.nowPlaying) {
-            await this.updateNowPlayingSong();
+            this.updateNowPlayingSong();
           }
 
           this.scrobbleSong();
         }
       });
 
-      // Handle setting changes from the frontend.
-      ipcMain.handle(`plugin.${PLUGIN_NAME}.setting`, async (_event, settings?: Settings) => {
-        if (!settings) return;
-
-        if (settings.delay) {
-          settings.delay = settings.delay;
-        }
-
-        // If the token changed, try to validate it.
-        const changed = this.settings.token !== settings.token;
+      ipcMain.handle(`plugin.${PLUGIN_NAME}.${StorageType.general}`, (_event, settings: GeneralData) => {
         this.settings = settings;
-
-        if (changed && this.settings.token) {
-          // https://listenbrainz.readthedocs.io/en/latest/users/api/core.html (validate-token API)
-
-          try {
-            const data = await this.submitRequest(undefined, "/1/validate-token", "GET");
-
-            const message: AuthResponse = data.valid ? {
-              ok: true, name: data.user_name
-            } : {
-              ok: false, error: data.message
-            };
-
-            this.env.utils.getWindow().webContents.send(`plugin.${PLUGIN_NAME}.name`, message);
-          } catch (error) {
-            this.env.utils.getWindow().webContents.send(`plugin.${PLUGIN_NAME}.name`, {
-              ok: false,
-              error: error
-            });
-          }
-        }
       });
     } catch (_ignored) {
       // An error should only fire if we attempt to handle a second time.
@@ -276,22 +196,29 @@ export default class CiderListenbrainzBackend {
     console.info("[Plugin][ListenBrainz]: Renderer Ready");
   }
 
-  public async updateNowPlayingSong(): Promise<void> {
+  private enabled(): boolean {
+    for (const provider of Object.values(this.providers)) {
+      if (provider.enabled()) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  private updateNowPlayingSong(): void {
     if (!this.net || this.cachedNowPlayingId === this.id || !this.payload) return;
 
-    const submission: Submission = {
-      listen_type: "playing_now", payload: [this.payload]
-    };
+    const payload = this.payload;
 
-    try {
-      await this.submitRequest(submission);
-      this.cachedNowPlayingId = this.id;
-    } catch (error) {
-      logError(error as RequestError);
+    for (const provider of Object.values(this.providers)) {
+      if (provider.enabled()) {
+        provider.updateListening(payload);
+      }
     }
   }
 
-  public scrobbleSong(): void {
+  private scrobbleSong(): void {
     if (this.timer) clearTimeout(this.timer);
     if (!this.payload) return;
 
@@ -310,92 +237,27 @@ export default class CiderListenbrainzBackend {
     // If somehow the time is negative, but we haven't scrobbled, trigger a scrobble.
     if (remainingTime < 0 && !this.scrobbled) {
       remainingTime = 0;
+    } else if (this.scrobbled) {
+      remainingTime = -1;
     }
 
     // Set a timer for the remaining time.
     if (remainingTime >= 0) {
-      self.timer = setTimeout(async () => {
+      self.timer = setTimeout(() => {
         self.timer = undefined;
         if (!self.net || self.cachedId === this.id) return;
 
         self.scrobbled = true;
 
-        const submission: Submission = {
-          listen_type: "single", payload: [{
-            listened_at: Math.floor(new Date().getTime() / 1000), ...payload
-          }]
-        };
+        const scrobbleTime = new Date();
 
-        for (let tries = 1; tries <= 5; tries++) {
-          try {
-            await self.submitRequest(submission);
-            self.cachedId = self.id;
-          } catch (error) {
-            let err = error as RequestError;
-            logError(err as RequestError);
-
-            if (err.net || err.code !== 503) {
-              break;
-            }
-
-            // Sleep for 10 seconds * how many tries we've made
-            await sleep(10_000 * tries);
+        for (const provider of Object.values(self.providers)) {
+          if (provider.enabled()) {
+            provider.scrobbleSong(payload, scrobbleTime);
           }
         }
       }, remainingTime);
     }
-  }
-
-  private async submitRequest(submission: Submission | undefined,
-    endPoint = "/1/submit-listens",
-    method = "POST"
-  ): Promise<any> {
-    return new Promise((resolve: (value: any) => void, reject: (value: RequestError) => void) => {
-      const request = this.net!.request({
-        method: method,
-        protocol: "https:",
-        host: "api.listenbrainz.org",
-        path: endPoint
-      });
-
-      request.setHeader("Authorization", `Token ${this.settings.token}`);
-      request.setHeader("User-Agent", USER_AGENT);
-
-      request.on("response", (response) => {
-        let body = "";
-
-        response.on("end", () => {
-          try {
-            const respJson = JSON.parse(body);
-
-            // A response is only OK if it has HTTP code 200.
-            if (response.statusCode === 200) {
-              resolve(respJson);
-            } else {
-              reject({ code: response.statusCode, net: false, msg: respJson.error, });
-            }
-          } catch (error) {
-            reject({ error: error as Error, net: true });
-          }
-        });
-
-        response.on("data", chunk => {
-          body += chunk.toString("utf-8");
-        });
-      });
-
-      request.on("error", error => {
-        reject({ error, net: true });
-      });
-
-      // If we have a JSON body (e.g., not validate-token), send that
-      if (submission) {
-        request.setHeader("Content-Type", "application/json");
-        request.write(JSON.stringify(submission), "utf-8");
-      }
-
-      request.end();
-    })
   }
 
   private async lookupIsrc(isrc: string, url: string): Promise<Payload | undefined> {
@@ -462,57 +324,5 @@ export default class CiderListenbrainzBackend {
         reject(error);
       }
     });
-  }
-
-  private async getPrimaryArtist(originalName: string): Promise<string> {
-    if (!this.settings.removeFeatured || !this.id) return originalName;
-
-    const res = await this.env.utils.getWindow().webContents.executeJavaScript(`
-        (async () => {
-            const subMk = await MusicKit.getInstance().api.v3.music("/v1/catalog/" + MusicKit.getInstance().storefrontId + "/songs/${this.id}", {
-                include: {
-                    songs: ["artists"]
-                }
-            });
-            if (!subMk) console.error('[Plugin][ListenBrainz]: Request failed: /v1/catalog/us/songs/${this.id}');
-            return subMk.data;
-        })()
-    `).catch((error: any) => {
-      console.error("[Plugin][ListenBrainz]: ", error);
-    });
-    if (!res) return originalName;
-
-    const data = res.data;
-    if (!data.length) {
-      console.error(`[Plugin][ListenBrainz]: Unable to locate song with id of ${this.id}`)
-      return originalName;
-    }
-
-    const artists = res.data[0].relationships.artists.data;
-    if (!artists.length) {
-      console.error(`[Plugin][ListenBrainz]: Unable to find artists related to the song with id of ${this.id}`)
-      return originalName;
-    }
-
-    const primaryArtist = artists[0];
-
-    // Contrary to the LastFM plugin, it appears that the name might not be included in
-    // the attributes. In this case, try to fetch the artist manually
-    if (primaryArtist.attributes && primaryArtist.attributes.name) {
-      return primaryArtist.attributes.name;
-    } else {
-      const artistRes = await this.env.utils.getWindow().webContents.executeJavaScript(`
-        (async () => {
-            const subMk = await MusicKit.getInstance().api.v3.music("${primaryArtist.href}", {});
-            if (!subMk) console.error('[Plugin][ListenBrainz]: Request failed: ${primaryArtist.href}');
-            return subMk.data;
-        })()
-      `).catch((error: any) => {
-        console.error("[Plugin][ListenBrainz]:", error);
-      });
-
-      if (!artistRes) return originalName;
-      return artistRes.data[0].attributes.name;
-    }
   }
 }

@@ -1,22 +1,15 @@
-interface AuthError {
-  ok: false;
-  error: string;
-}
+import type { StorageType } from "./consts";
+import type { Authorization } from "./providers/types";
 
-interface AuthSuccess {
-  ok: true;
-  name: string;
-}
+export type Provider = "listenbrainz" | "librefm" | "maloja";
 
-export type AuthResponse = AuthError | AuthSuccess;
+export type AuthResponse = [StorageType, Authorization];
 
-export interface Settings {
-  debug: boolean;
-  delay: number;
+export interface ProviderSetting {
   enabled: boolean;
-  filterLoop: boolean;
-  nowPlaying: boolean;
-  removeFeatured: boolean;
-  token?: string;
-  username?: string;
+  session: string | null;
+  token: string | null;
+  username: string | null;
+  url: string | null;
 }
+

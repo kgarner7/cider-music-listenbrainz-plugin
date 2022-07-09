@@ -61,12 +61,13 @@ export default [{
   external: ["path", "fs", "electron"],
   plugins: [
     json({ compact: true }),
-    commonjs({}),
+    commonjs(),
     babel({ babelHelpers: "bundled", extensions: [".ts"] }),
     nodeResolve({
       // use "jsnext:main" if possible
       // see https://github.com/rollup/rollup/wiki/jsnext:main
-      "jsnext:main": true
+      "jsnext:main": true,
+      extensions: [".ts"]
     }),
     copy({
       targets: [
@@ -86,9 +87,13 @@ export default [{
   ...BASE_SETTINGS,
   input: "src/index.frontend.ts",
   plugins: [
-    babel({ babelHelpers: "bundled", extensions: [".ts"] }),
     ignore({
       "vue": "Vue"
+    }),
+    commonjs(),
+    babel({ babelHelpers: "bundled", extensions: [".ts"] }),
+    nodeResolve({
+      extensions: [".js", ".ts"]
     })
   ]
 }]
