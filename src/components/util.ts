@@ -93,7 +93,7 @@ export class StorageUtil {
     }
   }
 
-  public static setBrainzData(data: any, maloja: boolean): void {
+  public static setBrainzData(data: BrainzData, maloja: boolean): void {
     this.setStorage(maloja ? StorageType.maloja : StorageType.listenbrainz, data);
   }
 
@@ -135,17 +135,17 @@ export class StorageUtil {
     if (data === undefined || data === null) return false;
 
     return (typeof data.enabled === "boolean") &&
-      (data.token === undefined || typeof data.token === "string") &&
-      (data.username === undefined || typeof data.username === "string") &&
-      (data.url === undefined || typeof data.url === "string");
+      (data.token === null || typeof data.token === "string") &&
+      (data.username === null || typeof data.username === "string") &&
+      (data.url === null || typeof data.url === "string");
   }
 
   private static isLibreFMSetting(data: any): data is LibreData {
     if (data === undefined || data === null) return false;
 
     return (typeof data.enabled === "boolean") &&
-      (data.session === undefined || typeof data.session === "string") &&
-      (data.username === undefined || typeof data.username === "string");
+      (data.session === null || typeof data.session === "string") &&
+      (data.username === null || typeof data.username === "string");
   }
 
   private static getStorage(key: StorageType): any | null {
