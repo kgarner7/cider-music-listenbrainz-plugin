@@ -535,12 +535,12 @@ class StorageUtil {
 
   static isProviderSetting(data) {
     if (data === undefined || data === null) return false;
-    return typeof data.enabled === "boolean" && (data.token === undefined || typeof data.token === "string") && (data.username === undefined || typeof data.username === "string") && (data.url === undefined || typeof data.url === "string");
+    return typeof data.enabled === "boolean" && (data.token === null || typeof data.token === "string") && (data.username === null || typeof data.username === "string") && (data.url === null || typeof data.url === "string");
   }
 
   static isLibreFMSetting(data) {
     if (data === undefined || data === null) return false;
-    return typeof data.enabled === "boolean" && (data.session === undefined || typeof data.session === "string") && (data.username === undefined || typeof data.username === "string");
+    return typeof data.enabled === "boolean" && (data.session === null || typeof data.session === "string") && (data.username === null || typeof data.username === "string");
   }
 
   static getStorage(key) {
