@@ -1405,7 +1405,7 @@ var Libre = Vue$1.component(`plugin-${PLUGIN_NAME}-libre`, {
   }
 });
 
-const name="cider-music-listenbrainz-plugin";const version="1.0.4";const repository={type:"git",url:"git+https://github.com/kgarner7/cider-music-listenbrainz-plugin"};
+const name="cider-music-listenbrainz-plugin";const version="1.0.5";const repository={type:"git",url:"git+https://github.com/kgarner7/cider-music-listenbrainz-plugin"};
 
 const USER_AGENT = `${name}/${version} { ${repository.url} }`;
 
@@ -1575,7 +1575,7 @@ var Recommendations = Vue$1.component(`plugin-${PLUGIN_NAME}-recommendation`, {
             </div>
           </template>
           <template v-else >
-            <div class="brainz" v-observe-visibility="{callback: visibilityChanged, throttle: 100}" :data-id="item.mk">{{ item.title }}: {{ item.by }}</div>
+            <div class="brainz" v-observe-visibility="{callback: visibilityChanged}" :data-id="item.mk">{{ item.title }}: {{ item.by }}</div>
             <mediaitem-list-item v-if="cached[item.mk]" :item="cached[item.mk]"/>
           </template>
         </template>

@@ -54,7 +54,7 @@ let StorageType;
   StorageType["maloja"] = "Maloja";
 })(StorageType || (StorageType = {}));
 
-const name="cider-music-listenbrainz-plugin";const version="1.0.4";const author="Kendall Garner <17521368+kgarner7@users.noreply.github.com>";const description="Cider Libre.fm/ListenBrainz/Maloja Scrobbler";const repository={type:"git",url:"git+https://github.com/kgarner7/cider-music-listenbrainz-plugin"};
+const name="cider-music-listenbrainz-plugin";const version="1.0.5";const author="Kendall Garner <17521368+kgarner7@users.noreply.github.com>";const description="Cider Libre.fm/ListenBrainz/Maloja Scrobbler";const repository={type:"git",url:"git+https://github.com/kgarner7/cider-music-listenbrainz-plugin"};
 
 const USER_AGENT = `${name}/${version} { ${repository.url} }`;
 var pkg = {
