@@ -1,3 +1,4 @@
-const pkg = require("./package.json");
+import { author, description, name, repository, version } from "../package.json";
 
-export const USER_AGENT = `${pkg.name}/${pkg.version} { ${pkg.repository.url} }`;
+export const USER_AGENT = `${name}/${version} { ${repository.url} }`;
+export default { author, description, name, repository, version };

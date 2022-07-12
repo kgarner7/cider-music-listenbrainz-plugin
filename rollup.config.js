@@ -60,7 +60,7 @@ export default [{
   input: "src/index.ts",
   external: ["path", "fs", "electron"],
   plugins: [
-    json({ compact: true }),
+    json({ compact: true, preferConst: true }),
     commonjs(),
     babel({ babelHelpers: "bundled", extensions: [".ts"] }),
     nodeResolve({
@@ -87,9 +87,8 @@ export default [{
   ...BASE_SETTINGS,
   input: "src/index.frontend.ts",
   plugins: [
-    ignore({
-      "vue": "Vue"
-    }),
+    ignore({ "vue": "Vue" }),
+    json({ compact: true, preferConst: true }),
     commonjs(),
     babel({ babelHelpers: "bundled", extensions: [".ts"] }),
     nodeResolve({

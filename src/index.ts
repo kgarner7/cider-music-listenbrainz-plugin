@@ -9,7 +9,7 @@ import { PLUGIN_NAME, StorageType } from "./consts";
 import { BaseProvider } from "./providers/baseProvider";
 import { Payload } from "./providers/types";
 import { LibreFMProvider } from "./providers/librefm";
-import { USER_AGENT } from "./consts-backend";
+import pkg, { USER_AGENT } from "./consts-backend";
 import type { GeneralData } from "./components/util";
 
 const MAX_FRACTION_BEFORE_SCROBBLING = 0.9;
@@ -17,6 +17,10 @@ const MAX_FRACTION_BEFORE_SCROBBLING = 0.9;
 // Adapted heavily from https://github.com/ciderapp/Cider/blob/dfd3fe6271f8328e3530bc7bc89d60c2f9536b87/src/main/plugins/lastfm.ts
 // In particular, getPrimaryArtist is virtually the same
 export default class CiderListenbrainzBackend {
+  public name = pkg.description;
+  public version = pkg.version;
+  public author = pkg.author;
+
   private env: any;
   private store: Record<string, any>;
   private net?: Electron.Net;

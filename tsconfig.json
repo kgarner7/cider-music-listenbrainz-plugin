@@ -12,6 +12,7 @@
     "declaration": true,
     "target": "esnext",
     "module": "esnext",
+    "resolveJsonModule": true,
     "strict": true
   },
   "include": [

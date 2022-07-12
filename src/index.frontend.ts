@@ -5,6 +5,7 @@ import { PLUGIN_NAME, StorageType } from "./consts";
 import Brainz from "./components/brainz";
 import General from "./components/general";
 import Libre from "./components/librefm";
+import Recommendations from "./components/recommendations";
 import { StorageUtil } from "./components/util";
 import type { Authorization } from "./providers/types";
 
@@ -30,6 +31,10 @@ declare namespace CiderFrontAPI {
     }
   }
 
+  class StyleSheets {
+    static Add(sheet: string): void
+  }
+
   function AddMenuEntry(menu: Objects.MenuEntry): void;
 }
 
@@ -39,32 +44,51 @@ declare const window: {
 };
 
 interface ComponentSettings {
+  cached: Record<string, any>;
   pageIndex: number;
+  username: string | null;
 }
 
 // Make it think that these exports are used
 Brainz.version;
 General.version;
 Libre.version;
+Recommendations.version;
 
 // Adapted from https://github.com/ChaseIngebritson/Cider-Music-Recommendation-Plugin/blob/e4f9d06ebfc6182983333dabb7d7946d744db010/src/components/musicRecommendations-vue.js
 Vue.component(`plugin.${PLUGIN_NAME}`, {
   template: `
   <div class="content-inner settings-page">
+  <mediaitem-list-item v-if="false" :item="song"/> 
     <b-tabs pills fill v-model="pageIndex">
       <plugin-${PLUGIN_NAME}-general />
-      <plugin-${PLUGIN_NAME}-brainz title="${StorageType.listenbrainz}" placeholder="https://api.listenbrainz.org" />
+      <plugin-${PLUGIN_NAME}-recommendation
+        v-if="username"
+        :username="username"
+        :cached="cached"
+        @cache="cacheChange"
+      />
+      <plugin-${PLUGIN_NAME}-brainz title="${StorageType.listenbrainz}" placeholder="https://api.listenbrainz.org" v-on:username="username = $event"/>
       <plugin-${PLUGIN_NAME}-libre />
       <plugin-${PLUGIN_NAME}-brainz title="${StorageType.maloja}" placeholder="http://localhost:42010" />
     </b-tabs>
   </div>`,
   data: (): ComponentSettings => ({
+    cached: ListenbrainzFrontend.cached,
     pageIndex: 0,
-  })
+    username: StorageUtil.getBrainzData(false).username
+  }),
+  methods: {
+    cacheChange(id: string, data: any): void {
+      this.$set(this.cached, id, data);
+    }
+  }
 });
 
 class ListenbrainzFrontend {
-  constructor() {
+  public static cached: Record<string, any> = {};
+
+  public constructor() {
     const menuEntry = new CiderFrontAPI.Objects.MenuEntry();
     menuEntry.id = window.uuidv4();
     menuEntry.name = "Libre.fm, ListenBrainz, Maloja"
@@ -73,6 +97,7 @@ class ListenbrainzFrontend {
     };
 
     CiderFrontAPI.AddMenuEntry(menuEntry);
+    CiderFrontAPI.StyleSheets.Add(`./plugins/gh_504963482/listenbrainz.less`);
 
     // Delete prior configuration.
     localStorage.removeItem(`plugin.${PLUGIN_NAME}.settings`);

@@ -112,6 +112,11 @@ export default Vue.component(`plugin-${PLUGIN_NAME}-brainz`, {
 
       StorageUtil.setBrainzData(data, this.title === StorageType.maloja);
 
+      if (this.title === StorageType.listenbrainz) {
+        // we only emit a username if we have a token (truthy), and are using the base URL
+        this.$emit("username", this.token && !this.url ? this.username : null);
+      }
+
       if (notify) {
         ipcRenderer.invoke(`plugin.${PLUGIN_NAME}.${this.title}`, data);
       }

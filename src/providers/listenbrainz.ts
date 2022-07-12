@@ -119,7 +119,9 @@ export class ListenBrainzProvider extends BaseProvider {
 
   private async sleep(timeInMs: number): Promise<void> {
     return new Promise(resolve => {
-      setTimeout(() => resolve, timeInMs);
+      setTimeout(() => {
+        resolve()
+      }, timeInMs);
     });
   }
 }

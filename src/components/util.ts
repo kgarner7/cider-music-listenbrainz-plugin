@@ -1,3 +1,5 @@
+import lz from "lz-string";
+
 import { PLUGIN_NAME, StorageType } from "../consts";
 import type { Authorization } from "../providers/types";
 import type { ProviderSetting } from "../types";
@@ -148,18 +150,28 @@ export class StorageUtil {
       (data.username === null || typeof data.username === "string");
   }
 
-  private static getStorage(key: StorageType): any | null {
-    const json = localStorage.getItem(
+  public static getStorage(key: string, compress = false): any | null {
+    let json = localStorage.getItem(
       `plugin.${PLUGIN_NAME}.${this.SETTINGS_KEY}.${key.toLocaleLowerCase()}`
     );
+
+    if (compress && json !== null) {
+      json = lz.decompress(json);
+    }
 
     return json ? JSON.parse(json) : null;
   }
 
-  private static setStorage(key: StorageType, data: any): void {
+  public static setStorage(key: string, data: any, compress = false): void {
+    let string = JSON.stringify(data);
+
+    if (compress) {
+      string = lz.compress(string);
+    }
+
     localStorage.setItem(
       `plugin.${PLUGIN_NAME}.${this.SETTINGS_KEY}.${key.toLocaleLowerCase()}`,
-      JSON.stringify(data)
+      string
     );
   }
 }
