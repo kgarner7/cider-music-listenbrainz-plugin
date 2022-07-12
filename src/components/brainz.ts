@@ -17,7 +17,7 @@ export default Vue.component(`plugin-${PLUGIN_NAME}-brainz`, {
         <div class="md-option-segment">
           <a
             v-if="isBaseListenbrainz"
-            href="https://listenbrainz.org/login/musicbrainz?next=%2Fprofile%2F"
+            href="https://listenbrainz.org/profile"
             target="_blank"
             rel="noreferrer"
           >
