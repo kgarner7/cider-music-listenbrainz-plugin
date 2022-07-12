@@ -1,6 +1,7 @@
 # Cider Libre.fm/ListenBrainz/Maloja Scrobbler
 
 This plugin allows you to scrobble tracks to Libre.fm, ListenBrainz and/or Maloja. 
+In addition, if ListenBrainz is configured, you can fetch recommendations and attempt to match them in Cider.
 
 **This plugin is not affiliated with Cider Collective**
 
@@ -28,6 +29,11 @@ The following assumes that Cider is installed
     2. [Libre.FM](https://libre.fm): Click connect, and log in. Once authorized, you can either enable it, or wait 60 seconds.
     3. [Maloja](https://github.com/krateng/maloja). Provide any one of your API keys, as well as the base url for your service. This **should not** include paths such as `/apis/listenbrainz`.
 3. Enable as many of the services as you wish, and configure other settings in General.
+
+## ListenBrainz Recommendations
+If you have configured base ListenBrainz, you can view recommendations in the Recommendations tab.
+You can select from raw recommendations, top artists, or similar artists.
+This plugin will search for tracks in Apple Music, first by ISRC (if present), and then by release name and artist.
 
 ## Development
 The main code branch is `main-dev`. If you wish to make changes, you should work on this branch.
