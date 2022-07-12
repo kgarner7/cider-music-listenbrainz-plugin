@@ -54,9 +54,16 @@ let StorageType;
   StorageType["maloja"] = "Maloja";
 })(StorageType || (StorageType = {}));
 
-const pkg = require("./package.json");
+const name="cider-music-listenbrainz-plugin";const version="1.0.4";const author="Kendall Garner <17521368+kgarner7@users.noreply.github.com>";const description="Cider Libre.fm/ListenBrainz/Maloja Scrobbler";const repository={type:"git",url:"git+https://github.com/kgarner7/cider-music-listenbrainz-plugin"};
 
-const USER_AGENT = `${pkg.name}/${pkg.version} { ${pkg.repository.url} }`;
+const USER_AGENT = `${name}/${version} { ${repository.url} }`;
+var pkg = {
+  author,
+  description,
+  name,
+  repository,
+  version
+};
 
 class BaseProvider {
   static init(env, net) {
@@ -336,7 +343,9 @@ class ListenBrainzProvider extends BaseProvider {
 
   async sleep(timeInMs) {
     return new Promise(resolve => {
-      setTimeout(() => resolve, timeInMs);
+      setTimeout(() => {
+        resolve();
+      }, timeInMs);
     });
   }
 
@@ -511,6 +520,12 @@ const MAX_FRACTION_BEFORE_SCROBBLING = 0.9; // Adapted heavily from https://gith
 
 class CiderListenbrainzBackend {
   constructor(env) {
+    _defineProperty(this, "name", pkg.description);
+
+    _defineProperty(this, "version", pkg.version);
+
+    _defineProperty(this, "author", pkg.author);
+
     _defineProperty(this, "env", void 0);
 
     _defineProperty(this, "store", void 0);

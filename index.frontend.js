@@ -1,5 +1,46 @@
 'use strict';
 
+function ownKeys(object, enumerableOnly) {
+  var keys = Object.keys(object);
+
+  if (Object.getOwnPropertySymbols) {
+    var symbols = Object.getOwnPropertySymbols(object);
+    enumerableOnly && (symbols = symbols.filter(function (sym) {
+      return Object.getOwnPropertyDescriptor(object, sym).enumerable;
+    })), keys.push.apply(keys, symbols);
+  }
+
+  return keys;
+}
+
+function _objectSpread2(target) {
+  for (var i = 1; i < arguments.length; i++) {
+    var source = null != arguments[i] ? arguments[i] : {};
+    i % 2 ? ownKeys(Object(source), !0).forEach(function (key) {
+      _defineProperty(target, key, source[key]);
+    }) : Object.getOwnPropertyDescriptors ? Object.defineProperties(target, Object.getOwnPropertyDescriptors(source)) : ownKeys(Object(source)).forEach(function (key) {
+      Object.defineProperty(target, key, Object.getOwnPropertyDescriptor(source, key));
+    });
+  }
+
+  return target;
+}
+
+function _defineProperty(obj, key, value) {
+  if (key in obj) {
+    Object.defineProperty(obj, key, {
+      value: value,
+      enumerable: true,
+      configurable: true,
+      writable: true
+    });
+  } else {
+    obj[key] = value;
+  }
+
+  return obj;
+}
+
 var Vue$1 = Vue;
 
 const PLUGIN_NAME = "listenbrainz";
@@ -392,46 +433,510 @@ function toNumber(value) {
 
 var debounce_1 = debounce;
 
-function ownKeys(object, enumerableOnly) {
-  var keys = Object.keys(object);
+var lzString = {exports: {}};
 
-  if (Object.getOwnPropertySymbols) {
-    var symbols = Object.getOwnPropertySymbols(object);
-    enumerableOnly && (symbols = symbols.filter(function (sym) {
-      return Object.getOwnPropertyDescriptor(object, sym).enumerable;
-    })), keys.push.apply(keys, symbols);
+(function (module) {
+// Copyright (c) 2013 Pieroxy <pieroxy@pieroxy.net>
+// This work is free. You can redistribute it and/or modify it
+// under the terms of the WTFPL, Version 2
+// For more information see LICENSE.txt or http://www.wtfpl.net/
+//
+// For more information, the home page:
+// http://pieroxy.net/blog/pages/lz-string/testing.html
+//
+// LZ-based compression algorithm, version 1.4.4
+var LZString = (function() {
+
+// private property
+var f = String.fromCharCode;
+var keyStrBase64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
+var keyStrUriSafe = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+-$";
+var baseReverseDic = {};
+
+function getBaseValue(alphabet, character) {
+  if (!baseReverseDic[alphabet]) {
+    baseReverseDic[alphabet] = {};
+    for (var i=0 ; i<alphabet.length ; i++) {
+      baseReverseDic[alphabet][alphabet.charAt(i)] = i;
+    }
   }
-
-  return keys;
+  return baseReverseDic[alphabet][character];
 }
 
-function _objectSpread2(target) {
-  for (var i = 1; i < arguments.length; i++) {
-    var source = null != arguments[i] ? arguments[i] : {};
-    i % 2 ? ownKeys(Object(source), !0).forEach(function (key) {
-      _defineProperty(target, key, source[key]);
-    }) : Object.getOwnPropertyDescriptors ? Object.defineProperties(target, Object.getOwnPropertyDescriptors(source)) : ownKeys(Object(source)).forEach(function (key) {
-      Object.defineProperty(target, key, Object.getOwnPropertyDescriptor(source, key));
-    });
+var LZString = {
+  compressToBase64 : function (input) {
+    if (input == null) return "";
+    var res = LZString._compress(input, 6, function(a){return keyStrBase64.charAt(a);});
+    switch (res.length % 4) { // To produce valid Base64
+    default: // When could this happen ?
+    case 0 : return res;
+    case 1 : return res+"===";
+    case 2 : return res+"==";
+    case 3 : return res+"=";
+    }
+  },
+
+  decompressFromBase64 : function (input) {
+    if (input == null) return "";
+    if (input == "") return null;
+    return LZString._decompress(input.length, 32, function(index) { return getBaseValue(keyStrBase64, input.charAt(index)); });
+  },
+
+  compressToUTF16 : function (input) {
+    if (input == null) return "";
+    return LZString._compress(input, 15, function(a){return f(a+32);}) + " ";
+  },
+
+  decompressFromUTF16: function (compressed) {
+    if (compressed == null) return "";
+    if (compressed == "") return null;
+    return LZString._decompress(compressed.length, 16384, function(index) { return compressed.charCodeAt(index) - 32; });
+  },
+
+  //compress into uint8array (UCS-2 big endian format)
+  compressToUint8Array: function (uncompressed) {
+    var compressed = LZString.compress(uncompressed);
+    var buf=new Uint8Array(compressed.length*2); // 2 bytes per character
+
+    for (var i=0, TotalLen=compressed.length; i<TotalLen; i++) {
+      var current_value = compressed.charCodeAt(i);
+      buf[i*2] = current_value >>> 8;
+      buf[i*2+1] = current_value % 256;
+    }
+    return buf;
+  },
+
+  //decompress from uint8array (UCS-2 big endian format)
+  decompressFromUint8Array:function (compressed) {
+    if (compressed===null || compressed===undefined){
+        return LZString.decompress(compressed);
+    } else {
+        var buf=new Array(compressed.length/2); // 2 bytes per character
+        for (var i=0, TotalLen=buf.length; i<TotalLen; i++) {
+          buf[i]=compressed[i*2]*256+compressed[i*2+1];
+        }
+
+        var result = [];
+        buf.forEach(function (c) {
+          result.push(f(c));
+        });
+        return LZString.decompress(result.join(''));
+
+    }
+
+  },
+
+
+  //compress into a string that is already URI encoded
+  compressToEncodedURIComponent: function (input) {
+    if (input == null) return "";
+    return LZString._compress(input, 6, function(a){return keyStrUriSafe.charAt(a);});
+  },
+
+  //decompress from an output of compressToEncodedURIComponent
+  decompressFromEncodedURIComponent:function (input) {
+    if (input == null) return "";
+    if (input == "") return null;
+    input = input.replace(/ /g, "+");
+    return LZString._decompress(input.length, 32, function(index) { return getBaseValue(keyStrUriSafe, input.charAt(index)); });
+  },
+
+  compress: function (uncompressed) {
+    return LZString._compress(uncompressed, 16, function(a){return f(a);});
+  },
+  _compress: function (uncompressed, bitsPerChar, getCharFromInt) {
+    if (uncompressed == null) return "";
+    var i, value,
+        context_dictionary= {},
+        context_dictionaryToCreate= {},
+        context_c="",
+        context_wc="",
+        context_w="",
+        context_enlargeIn= 2, // Compensate for the first entry which should not count
+        context_dictSize= 3,
+        context_numBits= 2,
+        context_data=[],
+        context_data_val=0,
+        context_data_position=0,
+        ii;
+
+    for (ii = 0; ii < uncompressed.length; ii += 1) {
+      context_c = uncompressed.charAt(ii);
+      if (!Object.prototype.hasOwnProperty.call(context_dictionary,context_c)) {
+        context_dictionary[context_c] = context_dictSize++;
+        context_dictionaryToCreate[context_c] = true;
+      }
+
+      context_wc = context_w + context_c;
+      if (Object.prototype.hasOwnProperty.call(context_dictionary,context_wc)) {
+        context_w = context_wc;
+      } else {
+        if (Object.prototype.hasOwnProperty.call(context_dictionaryToCreate,context_w)) {
+          if (context_w.charCodeAt(0)<256) {
+            for (i=0 ; i<context_numBits ; i++) {
+              context_data_val = (context_data_val << 1);
+              if (context_data_position == bitsPerChar-1) {
+                context_data_position = 0;
+                context_data.push(getCharFromInt(context_data_val));
+                context_data_val = 0;
+              } else {
+                context_data_position++;
+              }
+            }
+            value = context_w.charCodeAt(0);
+            for (i=0 ; i<8 ; i++) {
+              context_data_val = (context_data_val << 1) | (value&1);
+              if (context_data_position == bitsPerChar-1) {
+                context_data_position = 0;
+                context_data.push(getCharFromInt(context_data_val));
+                context_data_val = 0;
+              } else {
+                context_data_position++;
+              }
+              value = value >> 1;
+            }
+          } else {
+            value = 1;
+            for (i=0 ; i<context_numBits ; i++) {
+              context_data_val = (context_data_val << 1) | value;
+              if (context_data_position ==bitsPerChar-1) {
+                context_data_position = 0;
+                context_data.push(getCharFromInt(context_data_val));
+                context_data_val = 0;
+              } else {
+                context_data_position++;
+              }
+              value = 0;
+            }
+            value = context_w.charCodeAt(0);
+            for (i=0 ; i<16 ; i++) {
+              context_data_val = (context_data_val << 1) | (value&1);
+              if (context_data_position == bitsPerChar-1) {
+                context_data_position = 0;
+                context_data.push(getCharFromInt(context_data_val));
+                context_data_val = 0;
+              } else {
+                context_data_position++;
+              }
+              value = value >> 1;
+            }
+          }
+          context_enlargeIn--;
+          if (context_enlargeIn == 0) {
+            context_enlargeIn = Math.pow(2, context_numBits);
+            context_numBits++;
+          }
+          delete context_dictionaryToCreate[context_w];
+        } else {
+          value = context_dictionary[context_w];
+          for (i=0 ; i<context_numBits ; i++) {
+            context_data_val = (context_data_val << 1) | (value&1);
+            if (context_data_position == bitsPerChar-1) {
+              context_data_position = 0;
+              context_data.push(getCharFromInt(context_data_val));
+              context_data_val = 0;
+            } else {
+              context_data_position++;
+            }
+            value = value >> 1;
+          }
+
+
+        }
+        context_enlargeIn--;
+        if (context_enlargeIn == 0) {
+          context_enlargeIn = Math.pow(2, context_numBits);
+          context_numBits++;
+        }
+        // Add wc to the dictionary.
+        context_dictionary[context_wc] = context_dictSize++;
+        context_w = String(context_c);
+      }
+    }
+
+    // Output the code for w.
+    if (context_w !== "") {
+      if (Object.prototype.hasOwnProperty.call(context_dictionaryToCreate,context_w)) {
+        if (context_w.charCodeAt(0)<256) {
+          for (i=0 ; i<context_numBits ; i++) {
+            context_data_val = (context_data_val << 1);
+            if (context_data_position == bitsPerChar-1) {
+              context_data_position = 0;
+              context_data.push(getCharFromInt(context_data_val));
+              context_data_val = 0;
+            } else {
+              context_data_position++;
+            }
+          }
+          value = context_w.charCodeAt(0);
+          for (i=0 ; i<8 ; i++) {
+            context_data_val = (context_data_val << 1) | (value&1);
+            if (context_data_position == bitsPerChar-1) {
+              context_data_position = 0;
+              context_data.push(getCharFromInt(context_data_val));
+              context_data_val = 0;
+            } else {
+              context_data_position++;
+            }
+            value = value >> 1;
+          }
+        } else {
+          value = 1;
+          for (i=0 ; i<context_numBits ; i++) {
+            context_data_val = (context_data_val << 1) | value;
+            if (context_data_position == bitsPerChar-1) {
+              context_data_position = 0;
+              context_data.push(getCharFromInt(context_data_val));
+              context_data_val = 0;
+            } else {
+              context_data_position++;
+            }
+            value = 0;
+          }
+          value = context_w.charCodeAt(0);
+          for (i=0 ; i<16 ; i++) {
+            context_data_val = (context_data_val << 1) | (value&1);
+            if (context_data_position == bitsPerChar-1) {
+              context_data_position = 0;
+              context_data.push(getCharFromInt(context_data_val));
+              context_data_val = 0;
+            } else {
+              context_data_position++;
+            }
+            value = value >> 1;
+          }
+        }
+        context_enlargeIn--;
+        if (context_enlargeIn == 0) {
+          context_enlargeIn = Math.pow(2, context_numBits);
+          context_numBits++;
+        }
+        delete context_dictionaryToCreate[context_w];
+      } else {
+        value = context_dictionary[context_w];
+        for (i=0 ; i<context_numBits ; i++) {
+          context_data_val = (context_data_val << 1) | (value&1);
+          if (context_data_position == bitsPerChar-1) {
+            context_data_position = 0;
+            context_data.push(getCharFromInt(context_data_val));
+            context_data_val = 0;
+          } else {
+            context_data_position++;
+          }
+          value = value >> 1;
+        }
+
+
+      }
+      context_enlargeIn--;
+      if (context_enlargeIn == 0) {
+        context_enlargeIn = Math.pow(2, context_numBits);
+        context_numBits++;
+      }
+    }
+
+    // Mark the end of the stream
+    value = 2;
+    for (i=0 ; i<context_numBits ; i++) {
+      context_data_val = (context_data_val << 1) | (value&1);
+      if (context_data_position == bitsPerChar-1) {
+        context_data_position = 0;
+        context_data.push(getCharFromInt(context_data_val));
+        context_data_val = 0;
+      } else {
+        context_data_position++;
+      }
+      value = value >> 1;
+    }
+
+    // Flush the last char
+    while (true) {
+      context_data_val = (context_data_val << 1);
+      if (context_data_position == bitsPerChar-1) {
+        context_data.push(getCharFromInt(context_data_val));
+        break;
+      }
+      else context_data_position++;
+    }
+    return context_data.join('');
+  },
+
+  decompress: function (compressed) {
+    if (compressed == null) return "";
+    if (compressed == "") return null;
+    return LZString._decompress(compressed.length, 32768, function(index) { return compressed.charCodeAt(index); });
+  },
+
+  _decompress: function (length, resetValue, getNextValue) {
+    var dictionary = [],
+        enlargeIn = 4,
+        dictSize = 4,
+        numBits = 3,
+        entry = "",
+        result = [],
+        i,
+        w,
+        bits, resb, maxpower, power,
+        c,
+        data = {val:getNextValue(0), position:resetValue, index:1};
+
+    for (i = 0; i < 3; i += 1) {
+      dictionary[i] = i;
+    }
+
+    bits = 0;
+    maxpower = Math.pow(2,2);
+    power=1;
+    while (power!=maxpower) {
+      resb = data.val & data.position;
+      data.position >>= 1;
+      if (data.position == 0) {
+        data.position = resetValue;
+        data.val = getNextValue(data.index++);
+      }
+      bits |= (resb>0 ? 1 : 0) * power;
+      power <<= 1;
+    }
+
+    switch (bits) {
+      case 0:
+          bits = 0;
+          maxpower = Math.pow(2,8);
+          power=1;
+          while (power!=maxpower) {
+            resb = data.val & data.position;
+            data.position >>= 1;
+            if (data.position == 0) {
+              data.position = resetValue;
+              data.val = getNextValue(data.index++);
+            }
+            bits |= (resb>0 ? 1 : 0) * power;
+            power <<= 1;
+          }
+        c = f(bits);
+        break;
+      case 1:
+          bits = 0;
+          maxpower = Math.pow(2,16);
+          power=1;
+          while (power!=maxpower) {
+            resb = data.val & data.position;
+            data.position >>= 1;
+            if (data.position == 0) {
+              data.position = resetValue;
+              data.val = getNextValue(data.index++);
+            }
+            bits |= (resb>0 ? 1 : 0) * power;
+            power <<= 1;
+          }
+        c = f(bits);
+        break;
+      case 2:
+        return "";
+    }
+    dictionary[3] = c;
+    w = c;
+    result.push(c);
+    while (true) {
+      if (data.index > length) {
+        return "";
+      }
+
+      bits = 0;
+      maxpower = Math.pow(2,numBits);
+      power=1;
+      while (power!=maxpower) {
+        resb = data.val & data.position;
+        data.position >>= 1;
+        if (data.position == 0) {
+          data.position = resetValue;
+          data.val = getNextValue(data.index++);
+        }
+        bits |= (resb>0 ? 1 : 0) * power;
+        power <<= 1;
+      }
+
+      switch (c = bits) {
+        case 0:
+          bits = 0;
+          maxpower = Math.pow(2,8);
+          power=1;
+          while (power!=maxpower) {
+            resb = data.val & data.position;
+            data.position >>= 1;
+            if (data.position == 0) {
+              data.position = resetValue;
+              data.val = getNextValue(data.index++);
+            }
+            bits |= (resb>0 ? 1 : 0) * power;
+            power <<= 1;
+          }
+
+          dictionary[dictSize++] = f(bits);
+          c = dictSize-1;
+          enlargeIn--;
+          break;
+        case 1:
+          bits = 0;
+          maxpower = Math.pow(2,16);
+          power=1;
+          while (power!=maxpower) {
+            resb = data.val & data.position;
+            data.position >>= 1;
+            if (data.position == 0) {
+              data.position = resetValue;
+              data.val = getNextValue(data.index++);
+            }
+            bits |= (resb>0 ? 1 : 0) * power;
+            power <<= 1;
+          }
+          dictionary[dictSize++] = f(bits);
+          c = dictSize-1;
+          enlargeIn--;
+          break;
+        case 2:
+          return result.join('');
+      }
+
+      if (enlargeIn == 0) {
+        enlargeIn = Math.pow(2, numBits);
+        numBits++;
+      }
+
+      if (dictionary[c]) {
+        entry = dictionary[c];
+      } else {
+        if (c === dictSize) {
+          entry = w + w.charAt(0);
+        } else {
+          return null;
+        }
+      }
+      result.push(entry);
+
+      // Add w+entry[0] to the dictionary.
+      dictionary[dictSize++] = w + entry.charAt(0);
+      enlargeIn--;
+
+      w = entry;
+
+      if (enlargeIn == 0) {
+        enlargeIn = Math.pow(2, numBits);
+        numBits++;
+      }
+
+    }
   }
+};
+  return LZString;
+})();
 
-  return target;
+if( module != null ) {
+  module.exports = LZString;
 }
+}(lzString));
 
-function _defineProperty(obj, key, value) {
-  if (key in obj) {
-    Object.defineProperty(obj, key, {
-      value: value,
-      enumerable: true,
-      configurable: true,
-      writable: true
-    });
-  } else {
-    obj[key] = value;
-  }
-
-  return obj;
-}
+var lz = lzString.exports;
 
 class StorageUtil {
   static handleLibreBackground(_event, data) {
@@ -543,13 +1048,24 @@ class StorageUtil {
     return typeof data.enabled === "boolean" && (data.session === null || typeof data.session === "string") && (data.username === null || typeof data.username === "string");
   }
 
-  static getStorage(key) {
-    const json = localStorage.getItem(`plugin.${PLUGIN_NAME}.${this.SETTINGS_KEY}.${key.toLocaleLowerCase()}`);
+  static getStorage(key, compress = false) {
+    let json = localStorage.getItem(`plugin.${PLUGIN_NAME}.${this.SETTINGS_KEY}.${key.toLocaleLowerCase()}`);
+
+    if (compress && json !== null) {
+      json = lz.decompress(json);
+    }
+
     return json ? JSON.parse(json) : null;
   }
 
-  static setStorage(key, data) {
-    localStorage.setItem(`plugin.${PLUGIN_NAME}.${this.SETTINGS_KEY}.${key.toLocaleLowerCase()}`, JSON.stringify(data));
+  static setStorage(key, data, compress = false) {
+    let string = JSON.stringify(data);
+
+    if (compress) {
+      string = lz.compress(string);
+    }
+
+    localStorage.setItem(`plugin.${PLUGIN_NAME}.${this.SETTINGS_KEY}.${key.toLocaleLowerCase()}`, string);
   }
 
 }
@@ -676,6 +1192,11 @@ var Brainz = Vue$1.component(`plugin-${PLUGIN_NAME}-brainz`, {
         username: this.username
       };
       StorageUtil.setBrainzData(data, this.title === StorageType.maloja);
+
+      if (this.title === StorageType.listenbrainz) {
+        // we only emit a username if we have a token (truthy), and are using the base URL
+        this.$emit("username", this.token && !this.url ? this.username : null);
+      }
 
       if (notify) {
         ipcRenderer.invoke(`plugin.${PLUGIN_NAME}.${this.title}`, data);
@@ -884,24 +1405,570 @@ var Libre = Vue$1.component(`plugin-${PLUGIN_NAME}-libre`, {
   }
 });
 
+const name="cider-music-listenbrainz-plugin";const version="1.0.4";const repository={type:"git",url:"git+https://github.com/kgarner7/cider-music-listenbrainz-plugin"};
+
+const USER_AGENT = `${name}/${version} { ${repository.url} }`;
+
+var RecommendationType;
+
+(function (RecommendationType) {
+  RecommendationType["raw"] = "raw";
+  RecommendationType["similar"] = "similar";
+  RecommendationType["top"] = "top";
+})(RecommendationType || (RecommendationType = {}));
+
+var Matched;
+
+(function (Matched) {
+  Matched["any"] = "any";
+  Matched["only"] = "only";
+  Matched["not"] = "not";
+})(Matched || (Matched = {}));
+
+let killed = false;
+var Recommendations = Vue$1.component(`plugin-${PLUGIN_NAME}-recommendation`, {
+  template: `
+  <b-tab>
+    <template #title>
+      <div>Recommendations</div>
+    </template>
+    <div class="library-page">
+      <div class="library-header">
+        <div class="row">
+          <div class="col">
+            <div class="search-input-container" style="width:100%;margin: 16px 0;">
+              <div class="search-input--icon"></div>
+              <input type="search"
+                style="width:100%;"
+                spellcheck="false"
+                :placeholder="app.getLz('term.search') + '...'"
+                class="search-input"
+                v-model="query"
+              >
+            </div>
+          </div>
+          <div class="col-auto flex-center">
+            <div class="row">
+              <div class="col">
+                <select class="md-select" v-model="persist.type">
+                  <optgroup label="Recommendation type">
+                    <option value="${RecommendationType.raw}">Raw recommendations</option>
+                    <option value="${RecommendationType.top}">Top artists</option>
+                    <option value="${RecommendationType.similar}">Similar artists</option>
+                  </optgroup>
+                </select>
+              </div>
+            </div>
+          </div>
+          <div class="col-auto flex-center">
+            <div class="row">
+              <div class="col">
+                <select class="md-select" v-model.number="persist.fetch">
+                  <optgroup label="How many recommendations to fetch?">
+                    <option value="25">Top 25</option>
+                    <option value="50">Top 50</option>
+                    <option value="100">Top 100</option>
+                    <option value="250">Top 250</option>
+                    <option value="-1">All</option>
+                  </optgroup>
+                </select>
+              </div>
+            </div>
+          </div>
+          <div class="col-auto flex-center">
+            <div class="row">
+              <div class="col">
+                <select class="md-select" v-model.number="persist.perPage">
+                  <optgroup label="Recommendations per page">
+                    <option value="25">25 / page</option>
+                    <option value="50">50 / page</option>
+                    <option value="100">100 / page</option>
+                    <option value="250">250 / page</option>
+                  </optgroup>
+                </select>
+              </div>
+            </div>
+          </div>
+          <div class="col-auto flex-center">
+            <div class="row">
+              <div class="col">
+                <select class="md-select" v-model="persist.matched">
+                  <optgroup label="Songs to show">
+                    <option value="${Matched.any}">All</option>
+                    <option value="${Matched.only}">Only matched songs</option>
+                    <option value="${Matched.not}">Only unmatched songs</option>
+                  </optgroup>
+                </select>
+              </div>
+            </div>
+          </div>
+          <div class="col-auto flex-center">
+            <button
+              v-if="count === null"
+              @click="fetchRecommendations()"
+              class="reload-btn"
+              :aria-label="app.getLz('menubar.options.reload')"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 512 512"><!-- Font Awesome Free 5.15.4 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) --><path d="M500.33 0h-47.41a12 12 0 0 0-12 12.57l4 82.76A247.42 247.42 0 0 0 256 8C119.34 8 7.9 119.53 8 256.19 8.1 393.07 119.1 504 256 504a247.1 247.1 0 0 0 166.18-63.91 12 12 0 0 0 .48-17.43l-34-34a12 12 0 0 0-16.38-.55A176 176 0 1 1 402.1 157.8l-101.53-4.87a12 12 0 0 0-12.57 12v47.41a12 12 0 0 0 12 12h200.33a12 12 0 0 0 12-12V12a12 12 0 0 0-12-12z"/></svg>
+            </button>
+            <template v-else>
+              <button class="col md-btn md-btn-primary  md-btn-icon" @click="kill()" style="margin-right: 15px">
+                {{ app.getLz("dialog.cancel") }}
+              </button>
+              <button class="reload-btn" style="opacity: 0.8;pointer-events: none" :aria-label="app.getLz('menubar.options.reload')">
+                <div class="spinner"></div>
+              </button>
+            </template>
+          </div>
+          <div class="col-auto flex-center" v-if="count !== null">
+            {{ count }} / {{ outOf }}
+          </div>
+        </div>
+        <div class="row" style="margin-bottom: 16px">
+          <button
+            class="col md-btn page-btn"
+            :disabled="currentPage === 1"
+            @click="goToPage(1)"
+          >
+            <img class="md-ico-first"/>
+          </button>
+          <button
+            class="col md-btn page-btn prev"
+            :disabled="currentPage === 1"
+            @click="goToPrevious()"
+          >
+            <img class="md-ico-prev"/>
+          </button>
+          <button
+            :class="getPageClass(page)"
+            @click="goToPage(page)"
+            v-for="page in pagesToShow"
+          >{{ page }}</button>
+          <button
+            class="col md-btn page-btn next"
+            :disabled="currentPage === numPages"
+            @click="goToNext()"
+          >
+            <img class="md-ico-next"/>
+          </button>
+          <button
+            class="col md-btn page-btn last"
+            :disabled="currentPage === numPages"
+            @click="goToEnd()"
+          >
+            <img class="md-ico-last"/>
+          </button>
+          <div class="col page-btn" style="min-width: 12em;">
+            <input type="number" min="1" :max="numPages" :value="currentPage" @change="changePage" />
+            <span>/ {{ numPages || 1 }}</span>
+          </div>
+        </div>
+      </div>
+      <div class="well brainz-rec" v-if="numPages === 0">
+        No recommendations yet. Try refreshing for some!
+      </div>
+      <div class="well brainz-rec" v-else>
+        <template v-for="(item, index) in currentSlice">
+          <template v-if="item.mk === null">
+            <div class="artist item-navigate brainz" @click="search(item.title + ' - ' + item.by)" stye="padding: 10px 0px;">
+              {{ item.title }}: {{ item.by }}
+            </div>
+          </template>
+          <template v-else >
+            <div class="brainz" v-observe-visibility="{callback: visibilityChanged, throttle: 100}" :data-id="item.mk">{{ item.title }}: {{ item.by }}</div>
+            <mediaitem-list-item v-if="cached[item.mk]" :item="cached[item.mk]"/>
+          </template>
+        </template>
+      </div>
+    </div>
+  </b-tab>
+  `,
+  props: {
+    cached: {
+      type: Object,
+      required: true
+    },
+    username: {
+      type: String,
+      required: true
+    }
+  },
+  data: function () {
+    let persist = StorageUtil.getStorage("recommendation", true);
+
+    if (!persist) {
+      persist = {
+        [RecommendationType.raw]: {},
+        [RecommendationType.similar]: {},
+        [RecommendationType.top]: {},
+        background: false,
+        fetch: 25,
+        matched: Matched.any,
+        page: {
+          [RecommendationType.raw]: 1,
+          [RecommendationType.similar]: 1,
+          [RecommendationType.top]: 1
+        },
+        perPage: 25,
+        type: RecommendationType.raw
+      };
+      StorageUtil.setStorage("recommendation", persist, true);
+    }
+
+    return {
+      count: null,
+      outOf: null,
+      persist,
+      query: null
+    };
+  },
+
+  mounted() {
+    this.update = debounce_1(this.update, 300);
+    killed = true;
+  },
+
+  watch: {
+    "persist.fetch": {
+      handler() {
+        this.update();
+      }
+
+    },
+    "persist.matched": {
+      handler() {
+        this.update();
+      }
+
+    },
+    "persist.type": {
+      handler() {
+        this.update();
+      }
+
+    },
+    [`persist.page.${RecommendationType.raw}`]: {
+      handler() {
+        this.update();
+      }
+
+    },
+    [`persist.page.${RecommendationType.similar}`]: {
+      handler() {
+        this.update();
+      }
+
+    },
+    [`persist.page.${RecommendationType.top}`]: {
+      handler() {
+        this.update();
+      }
+
+    }
+  },
+  computed: {
+    // Pagination
+    currentPage() {
+      return this.persist.page[this.persist.type] ?? 1;
+    },
+
+    currentSlice() {
+      const startingPage = Math.min(this.numPages, this.currentPage); // @ts-ignore
+
+      const result = this.display.slice((startingPage - 1) * this.persist.perPage, startingPage * this.persist.perPage);
+      return result;
+    },
+
+    numPages() {
+      return Math.ceil(this.display.length / this.persist.perPage);
+    },
+
+    pagesToShow: function () {
+      // @ts-ignore
+      let start = this.currentPage - 2;
+      let end = this.currentPage + 2;
+
+      if (start < 1) {
+        end += 1 - start;
+        start = 1;
+      }
+
+      const endDifference = end - this.numPages;
+
+      if (endDifference > 0) {
+        end = this.numPages;
+        start = Math.max(1, start - endDifference);
+      }
+
+      const array = [];
+
+      for (let idx = start; idx <= end; idx++) {
+        array.push(idx);
+      }
+
+      return array;
+    },
+
+    // display
+    display() {
+      let data = Object.values(this.persist[this.persist.type]);
+
+      if (this.query && this.persist.matched !== Matched.any) {
+        const expectMatch = this.persist.matched === Matched.only;
+        const query = this.query.toLocaleLowerCase();
+        data = data.filter(item => item.mk !== null === expectMatch && (item.title.toLocaleLowerCase().includes(query) || item.by.toLocaleLowerCase().includes(query)));
+      } else if (this.query) {
+        const query = this.query.toLocaleLowerCase();
+        data = data.filter(item => item.title.toLocaleLowerCase().includes(query) || item.by.toLocaleLowerCase().includes(query));
+      } else if (this.persist.matched !== Matched.any) {
+        const expectMatch = this.persist.matched === Matched.only;
+        data = data.filter(item => item.mk !== null === expectMatch);
+      }
+
+      return data;
+    }
+
+  },
+  methods: {
+    // Pagination
+    getPageClass(idx) {
+      const isCurrentPage = idx === this.currentPage || idx === this.numPages && this.currentPage > this.numPages;
+      return `col md-btn page-btn${isCurrentPage ? ' md-btn-primary' : ''}`;
+    },
+
+    changePage(event) {
+      const value = event.target.valueAsNumber;
+
+      if (!isNaN(value) && value >= 1 && value <= this.numPages) {
+        this.persist.page[this.persist.type] = value;
+      }
+    },
+
+    goToPage(page) {
+      this.persist.page[this.persist.type] = page;
+    },
+
+    goToPrevious: function () {
+      if (this.currentPage > 1) {
+        this.persist.page[this.persist.type] -= 1;
+      }
+    },
+    goToNext: function () {
+      if (this.currentPage < this.numPages) {
+        this.persist.page[this.persist.type] += 1;
+      }
+    },
+    goToEnd: function () {
+      this.persist.page[this.persist.type] = this.numPages;
+    },
+
+    // Recommendations
+    async fetchRecommendations() {
+      if (this.count !== null) return;
+      if (killed) killed = false;
+      this.count = 0;
+      this.outOf = 0;
+      const user = this.username;
+      const type = this.persist.type;
+      let count = this.persist.fetch; // Per API docs, this is guaranteed to be sorted in decreasing order
+
+      let recommendations = [];
+
+      if (this.persist.fetch !== -1) {
+        recommendations = (await this.fetchRecs(user, type, count)).payload.mbids;
+      } else {
+        for (;;) {
+          const recs = await this.fetchRecs(user, type, 1000, recommendations.length);
+          recommendations = recommendations.concat(recs.payload.mbids);
+
+          if (recommendations.length >= recs.payload.total_mbid_count) {
+            break;
+          }
+        }
+      }
+
+      this.outOf = recommendations.length;
+      const recs = this.persist[this.persist.type];
+      let newCount = 1; // Inside this loop, we modify the current mapping of recommendations. This is primarily
+      // so that they can be 
+
+      for (const rec of recommendations) {
+        const existing = recs[rec.recording_mbid];
+        if (killed) break;
+
+        if (!existing) {
+          const now = performance.now();
+
+          try {
+            const mbData = await fetch(`https://musicbrainz.org/ws/2/recording/${rec.recording_mbid}?fmt=json&inc=releases+artists+isrcs`, {
+              headers: {
+                "User-Agent": USER_AGENT
+              }
+            });
+            const json = await mbData.json();
+            const elapsed = performance.now() - now; // The rate limit is 1 request/sec/ip, but let's be more cautious
+
+            await this.sleep(Math.ceil(1000 - elapsed));
+            let artistNames = "";
+
+            for (const artist of json["artist-credit"]) {
+              artistNames += artist.name + artist.joinphrase;
+            }
+
+            const data = {
+              by: artistNames,
+              mk: null,
+              listen: rec.latest_listened_at,
+              score: rec.score,
+              title: json.title
+            };
+
+            if (json.isrcs.length > 0) {
+              const response = await app.mk.api.v3.music(`/v1/catalog/${app.mk.storefrontCountryCode}/songs?filter[isrc]=${json.isrcs.join(", ")}`);
+
+              if (response.response.ok && response.data.data.length > 0) {
+                for (const item of response.data.data) {
+                  if (item.meta?.redeliveryId) continue;
+                  data.mk = item.id;
+                  this.$set(this.cached, data.mk, item);
+                  break;
+                }
+              }
+            }
+
+            if (!data.mk) {
+              const query = encodeURIComponent(`${json.title} - ${artistNames}`);
+              const response = await app.mk.api.v3.music(`/v1/catalog/${app.mk.storefrontCountryCode}/search?term=${query}&limit=25&types=songs`);
+
+              if (response.response.ok && response.data.results.songs?.data.length === 1) {
+                const item = response.data.results.songs.data[0];
+                data.mk = item.id;
+                this.$set(this.cached, data.mk, item);
+              }
+            }
+
+            this.$set(recs, rec.recording_mbid, data);
+          } catch (error) {
+            console.error(`[plugin][%s]:`, PLUGIN_NAME, error);
+          }
+
+          newCount += 1;
+        } else {
+          existing.listen = rec.latest_listened_at;
+          existing.score = rec.score;
+          recs[rec.recording_mbid] = existing;
+        }
+
+        this.count += 1; // every 30 new songs, checkpoint
+
+        if (newCount % 30 === 0) {
+          StorageUtil.setStorage("recommendation", this.persist, true);
+        }
+
+        this.$set(this, "recs", recs);
+      } // Sort the new object
+
+
+      const newRecs = {};
+
+      for (const [key, match] of Object.entries(this.persist[type]).sort((a, b) => b[1].score - a[1].score)) {
+        newRecs[key] = match;
+      }
+
+      this.persist[type] = newRecs;
+      this.count = null;
+      this.outOf = null;
+      StorageUtil.setStorage("recommendation", this.persist, true);
+      console.timeEnd();
+    },
+
+    async fetchRecs(user, type, count, offset = 0) {
+      const data = await fetch(`https://api.listenbrainz.org/1/cf/recommendation/user/${user}/recording?artist_type=${type}&count=${count}&offset=${offset}`, {
+        headers: {
+          "User-Agent": USER_AGENT
+        }
+      });
+      const remainingCalls = parseInt(data.headers.get("x-ratelimit-remaining"));
+
+      if (remainingCalls === 0) {
+        const resetInSec = parseInt(data.headers.get("x-ratelimit-reset-in"));
+        await this.sleep(resetInSec * 1000);
+      }
+
+      return data.json();
+    },
+
+    async sleep(timeInMs) {
+      return new Promise(resolve => {
+        setTimeout(() => {
+          resolve();
+        }, timeInMs);
+      });
+    },
+
+    search(title) {
+      app.search.term = title;
+      app.searchQuery();
+      app.showSearch();
+    },
+
+    update() {
+      StorageUtil.setStorage("recommendation", this.persist, true);
+    },
+
+    visibilityChanged(visible, entry) {
+      const id = entry.target.dataset.id;
+
+      if (!this.cached[id] && visible) {
+        app.mk.api.v3.music(`/v1/catalog/us/songs/${id}`).then(data => {
+          this.$emit("cache", id, data.data.data[0]);
+        }).catch(error => {
+          console.error("[plugin][%s]:", PLUGIN_NAME, error);
+        });
+      }
+    },
+
+    kill() {
+      killed = true;
+    }
+
+  }
+});
+
 // Make it think that these exports are used
 Brainz.version;
 General.version;
-Libre.version; // Adapted from https://github.com/ChaseIngebritson/Cider-Music-Recommendation-Plugin/blob/e4f9d06ebfc6182983333dabb7d7946d744db010/src/components/musicRecommendations-vue.js
+Libre.version;
+Recommendations.version; // Adapted from https://github.com/ChaseIngebritson/Cider-Music-Recommendation-Plugin/blob/e4f9d06ebfc6182983333dabb7d7946d744db010/src/components/musicRecommendations-vue.js
 
 Vue$1.component(`plugin.${PLUGIN_NAME}`, {
   template: `
   <div class="content-inner settings-page">
+  <mediaitem-list-item v-if="false" :item="song"/> 
     <b-tabs pills fill v-model="pageIndex">
       <plugin-${PLUGIN_NAME}-general />
-      <plugin-${PLUGIN_NAME}-brainz title="${StorageType.listenbrainz}" placeholder="https://api.listenbrainz.org" />
+      <plugin-${PLUGIN_NAME}-recommendation
+        v-if="username"
+        :username="username"
+        :cached="cached"
+        @cache="cacheChange"
+      />
+      <plugin-${PLUGIN_NAME}-brainz title="${StorageType.listenbrainz}" placeholder="https://api.listenbrainz.org" v-on:username="username = $event"/>
       <plugin-${PLUGIN_NAME}-libre />
       <plugin-${PLUGIN_NAME}-brainz title="${StorageType.maloja}" placeholder="http://localhost:42010" />
     </b-tabs>
   </div>`,
   data: () => ({
-    pageIndex: 0
-  })
+    cached: ListenbrainzFrontend.cached,
+    pageIndex: 0,
+    username: StorageUtil.getBrainzData(false).username
+  }),
+  methods: {
+    cacheChange(id, data) {
+      this.$set(this.cached, id, data);
+    }
+
+  }
 });
 
 class ListenbrainzFrontend {
@@ -914,7 +1981,8 @@ class ListenbrainzFrontend {
       app.appRoute(`plugin/${PLUGIN_NAME}`);
     };
 
-    CiderFrontAPI.AddMenuEntry(menuEntry); // Delete prior configuration.
+    CiderFrontAPI.AddMenuEntry(menuEntry);
+    CiderFrontAPI.StyleSheets.Add(`./plugins/gh_504963482/listenbrainz.less`); // Delete prior configuration.
 
     localStorage.removeItem(`plugin.${PLUGIN_NAME}.settings`);
     ipcRenderer.invoke(`plugin.${PLUGIN_NAME}.${StorageType.general}`, StorageUtil.generalStorage);
@@ -955,5 +2023,7 @@ class ListenbrainzFrontend {
   }
 
 }
+
+_defineProperty(ListenbrainzFrontend, "cached", {});
 
 new ListenbrainzFrontend();
