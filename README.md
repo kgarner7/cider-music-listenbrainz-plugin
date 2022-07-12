@@ -51,4 +51,4 @@ This will watch for changes, and attempt to copy your files to the correct direc
 For type-checking, you should also run `yarn type-check:watch`.
 
 ## Language
-I have reused as much of Cider's built-in translation as possible, but there are some parts that I have added that are ony in English (and some of the services return data in English).
+I have reused as much of Cider's built-in translation as possible, but there are some parts that I have added that are only in English (and some of the services return data in English).

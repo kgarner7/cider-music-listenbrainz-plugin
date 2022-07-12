@@ -1083,7 +1083,7 @@ var Brainz = Vue$1.component(`plugin-${PLUGIN_NAME}-brainz`, {
         <div class="md-option-segment">
           <a
             v-if="isBaseListenbrainz"
-            href="https://listenbrainz.org/login/musicbrainz?next=%2Fprofile%2F"
+            href="https://listenbrainz.org/profile"
             target="_blank"
             rel="noreferrer"
           >
@@ -1575,7 +1575,7 @@ var Recommendations = Vue$1.component(`plugin-${PLUGIN_NAME}-recommendation`, {
             </div>
           </template>
           <template v-else >
-            <div class="brainz" v-observe-visibility="{callback: visibilityChanged}" :data-id="item.mk">{{ item.title }}: {{ item.by }}</div>
+            <div class="brainz" :data-id="item.mk">{{ item.title }}: {{ item.by }}</div>
             <mediaitem-list-item v-if="cached[item.mk]" :item="cached[item.mk]"/>
           </template>
         </template>
@@ -1626,6 +1626,7 @@ var Recommendations = Vue$1.component(`plugin-${PLUGIN_NAME}-recommendation`, {
   mounted() {
     this.update = debounce_1(this.update, 300);
     killed = true;
+    this.prefetch();
   },
 
   watch: {
@@ -1673,8 +1674,7 @@ var Recommendations = Vue$1.component(`plugin-${PLUGIN_NAME}-recommendation`, {
     },
 
     currentSlice() {
-      const startingPage = Math.min(this.numPages, this.currentPage); // @ts-ignore
-
+      const startingPage = Math.min(this.numPages, this.currentPage);
       const result = this.display.slice((startingPage - 1) * this.persist.perPage, startingPage * this.persist.perPage);
       return result;
     },
@@ -1683,8 +1683,7 @@ var Recommendations = Vue$1.component(`plugin-${PLUGIN_NAME}-recommendation`, {
       return Math.ceil(this.display.length / this.persist.perPage);
     },
 
-    pagesToShow: function () {
-      // @ts-ignore
+    pagesToShow() {
       let start = this.currentPage - 2;
       let end = this.currentPage + 2;
 
@@ -1741,25 +1740,50 @@ var Recommendations = Vue$1.component(`plugin-${PLUGIN_NAME}-recommendation`, {
 
       if (!isNaN(value) && value >= 1 && value <= this.numPages) {
         this.persist.page[this.persist.type] = value;
+        this.prefetch();
       }
     },
 
     goToPage(page) {
       this.persist.page[this.persist.type] = page;
+      this.prefetch();
     },
 
     goToPrevious: function () {
       if (this.currentPage > 1) {
         this.persist.page[this.persist.type] -= 1;
+        this.prefetch();
       }
     },
     goToNext: function () {
       if (this.currentPage < this.numPages) {
         this.persist.page[this.persist.type] += 1;
+        this.prefetch();
       }
     },
     goToEnd: function () {
       this.persist.page[this.persist.type] = this.numPages;
+      this.prefetch();
+    },
+
+    async prefetch() {
+      let batch = [];
+
+      for (const item of this.currentSlice) {
+        if (item.mk) {
+          if (this.cached[item.mk]) break;
+          batch.push(this.fetchItem(item.mk));
+
+          if (batch.length === 10) {
+            await Promise.all(batch);
+            batch = [];
+          }
+        }
+      }
+
+      if (batch.length > 0) {
+        await Promise.all(batch);
+      }
     },
 
     // Recommendations
@@ -1916,15 +1940,14 @@ var Recommendations = Vue$1.component(`plugin-${PLUGIN_NAME}-recommendation`, {
       StorageUtil.setStorage("recommendation", this.persist, true);
     },
 
-    visibilityChanged(visible, entry) {
-      const id = entry.target.dataset.id;
-
-      if (!this.cached[id] && visible) {
-        app.mk.api.v3.music(`/v1/catalog/us/songs/${id}`).then(data => {
+    async fetchItem(id) {
+      if (!this.cached[id]) {
+        try {
+          const data = await app.mk.api.v3.music(`/v1/catalog/us/songs/${id}`);
           this.$emit("cache", id, data.data.data[0]);
-        }).catch(error => {
+        } catch (error) {
           console.error("[plugin][%s]:", PLUGIN_NAME, error);
-        });
+        }
       }
     },
 
