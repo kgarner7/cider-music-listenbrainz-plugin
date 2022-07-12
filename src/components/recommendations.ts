@@ -244,7 +244,7 @@ export default Vue.component(`plugin-${PLUGIN_NAME}-recommendation`, {
             </div>
           </template>
           <template v-else >
-            <div class="brainz" v-observe-visibility="{callback: visibilityChanged, throttle: 100}" :data-id="item.mk">{{ item.title }}: {{ item.by }}</div>
+            <div class="brainz" v-observe-visibility="{callback: visibilityChanged}" :data-id="item.mk">{{ item.title }}: {{ item.by }}</div>
             <mediaitem-list-item v-if="cached[item.mk]" :item="cached[item.mk]"/>
           </template>
         </template>
