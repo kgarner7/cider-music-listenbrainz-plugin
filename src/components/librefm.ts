@@ -5,6 +5,7 @@ import { Authorization, LibreMessage } from "../providers/types";
 import { LibreData, StorageUtil } from "./util";
 
 interface LibreSettings extends LibreData {
+  app: Vue;
   // Token is explicitly ignored
   token: string | null;
   waiting: boolean;
@@ -49,11 +50,14 @@ export default Vue.component(`plugin-${PLUGIN_NAME}-libre`, {
     </div>
   </b-tab>`,
 
-  data: (): LibreSettings => ({
-    token: null,
-    waiting: false,
-    ...StorageUtil.libreData
-  }),
+  data: function (): LibreSettings {
+    return {
+      app: this.$root,
+      token: null,
+      waiting: false,
+      ...StorageUtil.libreData
+    }
+  },
   mounted() {
     this.handleChange = debounce(this.handleChange, 300) as VoidFunction;
 

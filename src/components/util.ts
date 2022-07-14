@@ -26,6 +26,14 @@ declare const bootbox: {
 export class StorageUtil {
   private static SETTINGS_KEY = "settings";
 
+  public static async sleep(timeInMs: number): Promise<void> {
+    return new Promise(resolve => {
+      setTimeout(() => {
+        resolve()
+      }, timeInMs);
+    });
+  }
+
   public static handleLibreBackground(_event: Electron.IpcRendererEvent, data: Authorization) {
     const originalData = StorageUtil.libreData;
 

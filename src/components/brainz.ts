@@ -6,6 +6,10 @@ import { BrainzData, StorageUtil } from "./util";
 
 declare const ipcRenderer: Electron.IpcRenderer;
 
+interface BrainsConfig extends BrainzData {
+  app: any;
+}
+
 export default Vue.component(`plugin-${PLUGIN_NAME}-brainz`, {
   template: `
   <b-tab>
@@ -66,10 +70,10 @@ export default Vue.component(`plugin-${PLUGIN_NAME}-brainz`, {
     placeholder: { type: String, required: true },
     title: { type: String, required: true },
   },
-  data: function (): BrainzData {
+  data: function (): BrainsConfig {
     const data = StorageUtil.getBrainzData(this.title === StorageType.maloja);
 
-    return data;
+    return { app: this.$root, ...data };
   },
   mounted() {
     this.handleChange = debounce(this.handleChange, 300) as VoidFunction;

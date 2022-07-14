@@ -7,6 +7,7 @@ import General from "./components/general";
 import Libre from "./components/librefm";
 import Recommendations from "./components/recommendations";
 import { StorageUtil } from "./components/util";
+import debounce from "./debounce";
 import type { Authorization } from "./providers/types";
 
 declare const ipcRenderer: Electron.IpcRenderer;
@@ -44,8 +45,10 @@ declare const window: {
 };
 
 interface ComponentSettings {
+  app: any;
   cached: Record<string, any>;
   pageIndex: number;
+  pending: Array<[number, string]>;
   username: string | null;
 }
 
@@ -73,14 +76,47 @@ Vue.component(`plugin.${PLUGIN_NAME}`, {
       <plugin-${PLUGIN_NAME}-brainz title="${StorageType.maloja}" placeholder="http://localhost:42010" />
     </b-tabs>
   </div>`,
-  data: (): ComponentSettings => ({
-    cached: ListenbrainzFrontend.cached,
-    pageIndex: 0,
-    username: StorageUtil.getBrainzData(false).username
-  }),
+  data: function (): ComponentSettings {
+    return {
+      app: this.$root,
+      cached: ListenbrainzFrontend.cached,
+      pageIndex: 0,
+      pending: [],
+      username: StorageUtil.getBrainzData(false).username
+    };
+  },
+  mounted(): void {
+    this.fetchAll = debounce(this.fetchAll, 300) as () => Promise<void>;
+  },
   methods: {
-    cacheChange(id: string, data: any): void {
-      this.$set(this.cached, id, data);
+    cacheChange(id: string, score: number): void {
+      this.pending.push([score, id]);
+
+      this.fetchAll();
+    },
+    async fetchAll(): Promise<void> {
+      // Why all this? The goal of this is to batch requests in 25, so as to reduce the load of sending out a massive load of requests at once.
+      const items = this.pending;
+      this.pending = [];
+
+      items.sort((a, b) => b[0] - a[0]);
+
+      const GROUP_SIZE = 25;
+
+      for (let idx = 0; idx < items.length; idx += GROUP_SIZE) {
+        const group = items.slice(idx, idx + GROUP_SIZE);
+        await Promise.all(group.map(this.fetchItem));
+        await StorageUtil.sleep(100);
+      }
+    },
+    async fetchItem(item: [number, string]) {
+      const id = item[1];
+      try {
+        const data = await this.app.mk.api.v3.music(`/v1/catalog/us/songs/${id}`);
+        this.$set(this.cached, id, data.data.data[0]);
+      } catch (error) {
+        console.error("[plugin][%s]:", PLUGIN_NAME, error);
+      }
     }
   }
 });

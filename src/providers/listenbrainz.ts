@@ -1,3 +1,4 @@
+import { StorageUtil } from "../components/util";
 import { PLUGIN_NAME, StorageType } from "../consts";
 import { ProviderSetting } from "../types";
 import { BaseProvider } from "./baseProvider";
@@ -53,7 +54,7 @@ export class ListenBrainzProvider extends BaseProvider {
           }
 
           // Sleep for 10 seconds * how many tries we've made
-          await this.sleep(10_000 * tries);
+          await StorageUtil.sleep(10_000 * tries);
         }
       }
 
@@ -115,13 +116,5 @@ export class ListenBrainzProvider extends BaseProvider {
         return { ok: false, error: reqError.msg };
       }
     }
-  }
-
-  private async sleep(timeInMs: number): Promise<void> {
-    return new Promise(resolve => {
-      setTimeout(() => {
-        resolve()
-      }, timeInMs);
-    });
   }
 }

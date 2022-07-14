@@ -1,11 +1,7 @@
 import Vue from "vue";
 import { PLUGIN_NAME, StorageType } from "../consts";
 import debounce from "../debounce";
-import { GeneralData, StorageUtil } from "./util";
-
-interface GeneralSettings {
-  settings: GeneralData;
-}
+import { StorageUtil } from "./util";
 
 declare const ipcRenderer: Electron.IpcRenderer;
 
@@ -59,9 +55,12 @@ export default Vue.component(`plugin-${PLUGIN_NAME}-general`, {
       </div>
     </div>
   </b-tab>`,
-  data: (): GeneralSettings => ({
-    settings: StorageUtil.generalStorage
-  }),
+  data: function () {
+    return {
+      app: this.$root,
+      settings: StorageUtil.generalStorage
+    }
+  },
   mounted() {
     this.handleChange = debounce(this.handleChange, 300) as VoidFunction;
   },

@@ -23,7 +23,7 @@ if (process.env.NODE_ENV === "production") {
     if (process.env.FLATPAK === "true") {
       OUTPUT_DIR = `${homedir()}/.var/app/sh.cider.Cider/config/Cider/Plugins/gh_504963482`
     } else {
-      OUTPUT_DIR = `${homedir()}/.conig/Cider/Plugins/gh_504963482`
+      OUTPUT_DIR = `${homedir()}/.config/Cider/Plugins/gh_504963482`
     }
   } else {
     OUTPUT_DIR = "dist";
