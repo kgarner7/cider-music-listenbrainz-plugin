@@ -10,7 +10,7 @@ interface BrainsConfig extends BrainzData {
   app: any;
 }
 
-export default Vue.component(`plugin-${PLUGIN_NAME}-brainz`, {
+export default Vue.component(`plugin.${PLUGIN_NAME}.brainz`, {
   template: `
   <b-tab>
     <template #title>

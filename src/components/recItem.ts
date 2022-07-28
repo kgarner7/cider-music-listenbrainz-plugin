@@ -9,7 +9,7 @@ export interface MatchedRecommendation {
   title: string;
 }
 
-export default Vue.component(`plugin-${PLUGIN_NAME}-item`, {
+export default Vue.component(`plugin.${PLUGIN_NAME}.item`, {
   template: `
   <div>
     <template v-if="item.mk === null">

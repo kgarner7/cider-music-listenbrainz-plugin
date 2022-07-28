@@ -92,17 +92,17 @@ let killed = false;
 // trick the compiler into thinking it is used
 RecItem.version;
 
-export default Vue.component(`plugin-${PLUGIN_NAME}-recommendation`, {
+export default Vue.component(`plugin.${PLUGIN_NAME}.recommendation`, {
   template: `
   <b-tab>
     <template #title>
       <div>Recommendations</div>
     </template>
     <div class="library-page">
-      <div class="library-header">
-        <div class="row">
+      <div class="library-header brainz-header">
+        <div class="row brainz-search-row">
           <div class="col">
-            <div class="search-input-container" style="width:100%;margin: 16px 0;">
+            <div class="search-input-container" style="width:100%;">
               <div class="search-input--icon"></div>
               <input type="search"
                 style="width:100%;"
@@ -152,7 +152,7 @@ export default Vue.component(`plugin-${PLUGIN_NAME}-recommendation`, {
               </optgroup>
             </select>
           </div>
-          <div class="col-auto flex-center">
+          <div class="col-auto flex-center floating">
             <button
               v-if="count === null"
               @click="fetchRecommendations()"
@@ -162,7 +162,7 @@ export default Vue.component(`plugin-${PLUGIN_NAME}-recommendation`, {
               <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 512 512"><!-- Font Awesome Free 5.15.4 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) --><path d="M500.33 0h-47.41a12 12 0 0 0-12 12.57l4 82.76A247.42 247.42 0 0 0 256 8C119.34 8 7.9 119.53 8 256.19 8.1 393.07 119.1 504 256 504a247.1 247.1 0 0 0 166.18-63.91 12 12 0 0 0 .48-17.43l-34-34a12 12 0 0 0-16.38-.55A176 176 0 1 1 402.1 157.8l-101.53-4.87a12 12 0 0 0-12.57 12v47.41a12 12 0 0 0 12 12h200.33a12 12 0 0 0 12-12V12a12 12 0 0 0-12-12z"/></svg>
             </button>
             <template v-else>
-              <button class="col md-btn md-btn-primary md-btn-icon" @click="kill()" style="margin-right: 15px">
+              <button class="col md-btn md-btn-primary md-btn-icon" @click="kill()">
                 {{ app.getLz("dialog.cancel") }}
               </button>
               <button class="reload-btn" style="opacity: 0.8;pointer-events: none" :aria-label="app.getLz('menubar.options.reload')">
@@ -184,16 +184,16 @@ export default Vue.component(`plugin-${PLUGIN_NAME}-recommendation`, {
             </button>
           </div>
         </div>
-        <div class="row" style="margin-bottom: 16px">
+        <div class="row brainz-pagination">
           <button
-            class="col md-btn page-btn"
+            class="md-btn page-btn"
             :disabled="currentPage === 1"
             @click="goToPage(1)"
           >
             <img class="md-ico-first"/>
           </button>
           <button
-            class="col md-btn page-btn prev"
+            class="md-btn page-btn prev"
             :disabled="currentPage === 1"
             @click="goToPrevious()"
           >
@@ -205,20 +205,20 @@ export default Vue.component(`plugin-${PLUGIN_NAME}-recommendation`, {
             v-for="page in pagesToShow"
           >{{ page }}</button>
           <button
-            class="col md-btn page-btn next"
+            class="md-btn page-btn next"
             :disabled="currentPage === numPages"
             @click="goToNext()"
           >
             <img class="md-ico-next"/>
           </button>
           <button
-            class="col md-btn page-btn last"
+            class="md-btn page-btn last"
             :disabled="currentPage === numPages"
             @click="goToEnd()"
           >
             <img class="md-ico-last"/>
           </button>
-          <div class="col page-btn" style="min-width: 12em;">
+          <div class="page-btn" style="min-width: 12em;">
             <input type="number" min="1" :max="numPages" :value="currentPage" @change="changePage" />
             <span>/ {{ numPages || 1 }}</span>
           </div>
@@ -229,7 +229,7 @@ export default Vue.component(`plugin-${PLUGIN_NAME}-recommendation`, {
       </div>
       <div class="well brainz-rec" v-else>
         <template v-for="(item, index) in currentSlice">
-          <plugin-${PLUGIN_NAME}-item :item="item" :cached="cached" @cache="cacheChange" />
+          <plugin.${PLUGIN_NAME}.item :item="item" :cached="cached" @cache="cacheChange" />
         </template>
       </div>
     </div>
@@ -310,8 +310,8 @@ export default Vue.component(`plugin-${PLUGIN_NAME}-recommendation`, {
       return Math.ceil(this.display.length / this.persist.perPage);
     },
     pagesToShow(): number[] {
-      let start = this.currentPage - 2;
-      let end = this.currentPage + 2;
+      let start = this.currentPage - 4;
+      let end = this.currentPage + 4;
 
       if (start < 1) {
         end += (1 - start);
@@ -366,7 +366,7 @@ export default Vue.component(`plugin-${PLUGIN_NAME}-recommendation`, {
     getPageClass(idx: number): string {
       const isCurrentPage = idx === this.currentPage ||
         (idx === this.numPages && this.currentPage > this.numPages);
-      return `col md-btn page-btn${isCurrentPage ? ' md-btn-primary' : ''}`;
+      return `md-btn page-btn${isCurrentPage ? ' md-btn-primary' : ''}`;
     },
     changePage(event: any) {
       const value = event!.target!.valueAsNumber;

@@ -2,6 +2,7 @@
 import { homedir } from "os";
 
 import dotenv from "dotenv";
+import { defineConfig } from "rollup";
 import copy from "rollup-plugin-copy"
 import { babel } from "@rollup/plugin-babel";
 import commonjs from "@rollup/plugin-commonjs";
@@ -30,14 +31,6 @@ if (process.env.NODE_ENV === "production") {
   }
 }
 
-const BASE_SETTINGS = {
-  output: {
-    dir: OUTPUT_DIR,
-    format: "cjs",
-    exports: "auto"
-  }
-}
-
 // I need to make some imports for type safety, and this will strip them out of the renderer.
 // Inspired by https://github.com/proteriax/rollup-plugin-ignore
 function ignore(mapping) {
@@ -55,8 +48,12 @@ function ignore(mapping) {
   }
 }
 
-export default [{
-  ...BASE_SETTINGS,
+export default defineConfig([{
+  output: {
+    dir: OUTPUT_DIR,
+    format: "cjs",
+    exports: "auto"
+  },
   input: "src/index.ts",
   external: ["path", "fs", "electron"],
   plugins: [
@@ -84,7 +81,13 @@ export default [{
     })
   ]
 }, {
-  ...BASE_SETTINGS,
+  output: {
+    dir: OUTPUT_DIR,
+    format: "iife",
+    exports: "auto",
+    name: "ListenBrainzPlugin",
+    esModule: false
+  },
   input: "src/index.frontend.ts",
   plugins: [
     ignore({ "vue": "Vue" }),
@@ -95,4 +98,4 @@ export default [{
       extensions: [".js", ".ts"]
     })
   ]
-}]
+}])

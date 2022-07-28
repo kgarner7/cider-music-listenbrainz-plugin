@@ -5,7 +5,7 @@ import { StorageUtil } from "./util";
 
 declare const ipcRenderer: Electron.IpcRenderer;
 
-export default Vue.component(`plugin-${PLUGIN_NAME}-general`, {
+export default Vue.component(`plugin.${PLUGIN_NAME}.general`, {
   name: "",
   template: `
   <b-tab>

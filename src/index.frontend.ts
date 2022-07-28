@@ -64,16 +64,16 @@ Vue.component(`plugin.${PLUGIN_NAME}`, {
   <div class="content-inner settings-page">
   <mediaitem-list-item v-if="false" :item="song"/> 
     <b-tabs pills fill v-model="pageIndex">
-      <plugin-${PLUGIN_NAME}-general />
-      <plugin-${PLUGIN_NAME}-recommendation
+      <plugin.${PLUGIN_NAME}.general />
+      <plugin.${PLUGIN_NAME}.recommendation
         v-if="username"
         :username="username"
         :cached="cached"
         @cache="cacheChange"
       />
-      <plugin-${PLUGIN_NAME}-brainz title="${StorageType.listenbrainz}" placeholder="https://api.listenbrainz.org" v-on:username="username = $event"/>
-      <plugin-${PLUGIN_NAME}-libre />
-      <plugin-${PLUGIN_NAME}-brainz title="${StorageType.maloja}" placeholder="http://localhost:42010" />
+      <plugin.${PLUGIN_NAME}.brainz title="${StorageType.listenbrainz}" placeholder="https://api.listenbrainz.org" v-on:username="username = $event"/>
+      <plugin.${PLUGIN_NAME}.libre />
+      <plugin.${PLUGIN_NAME}.brainz title="${StorageType.maloja}" placeholder="http://localhost:42010" />
     </b-tabs>
   </div>`,
   data: function (): ComponentSettings {
@@ -184,4 +184,9 @@ class ListenbrainzFrontend {
   }
 }
 
-new ListenbrainzFrontend();
+const BrainzFrontend = new ListenbrainzFrontend();
+
+// Exports, just incase
+export {
+  Brainz, BrainzFrontend, General, Libre, Recommendations, StorageUtil, StorageType
+};

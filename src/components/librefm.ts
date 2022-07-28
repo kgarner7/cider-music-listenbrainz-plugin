@@ -13,7 +13,7 @@ interface LibreSettings extends LibreData {
 
 declare const ipcRenderer: Electron.IpcRenderer;
 
-export default Vue.component(`plugin-${PLUGIN_NAME}-libre`, {
+export default Vue.component(`plugin.${PLUGIN_NAME}.libre`, {
   template: `
   <b-tab>
     <template #title>

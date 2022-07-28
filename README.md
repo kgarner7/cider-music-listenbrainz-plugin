@@ -50,5 +50,8 @@ If you want to test your changes, you should run `yarn start`.
 This will watch for changes, and attempt to copy your files to the correct directory.
 For type-checking, you should also run `yarn type-check:watch`.
 
+### Debugging the frontend
+To prevent pollution of the global namespace, I've made most of the frontend build as an IIFE. There are some exports in `index.frontend.ts`, which you can access by using the variable `ListenBrainzPlugin` (e.g. `ListenBrainzPlugin.StorageUtil`).
+
 ## Language
 I have reused as much of Cider's built-in translation as possible, but there are some parts that I have added that are only in English (and some of the services return data in English).
