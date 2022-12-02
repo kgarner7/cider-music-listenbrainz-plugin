@@ -3,17 +3,14 @@ var ListenBrainzPlugin = (function (exports) {
 
   function ownKeys(object, enumerableOnly) {
     var keys = Object.keys(object);
-
     if (Object.getOwnPropertySymbols) {
       var symbols = Object.getOwnPropertySymbols(object);
       enumerableOnly && (symbols = symbols.filter(function (sym) {
         return Object.getOwnPropertyDescriptor(object, sym).enumerable;
       })), keys.push.apply(keys, symbols);
     }
-
     return keys;
   }
-
   function _objectSpread2(target) {
     for (var i = 1; i < arguments.length; i++) {
       var source = null != arguments[i] ? arguments[i] : {};
@@ -23,11 +20,10 @@ var ListenBrainzPlugin = (function (exports) {
         Object.defineProperty(target, key, Object.getOwnPropertyDescriptor(source, key));
       });
     }
-
     return target;
   }
-
   function _defineProperty(obj, key, value) {
+    key = _toPropertyKey(key);
     if (key in obj) {
       Object.defineProperty(obj, key, {
         value: value,
@@ -38,15 +34,27 @@ var ListenBrainzPlugin = (function (exports) {
     } else {
       obj[key] = value;
     }
-
     return obj;
+  }
+  function _toPrimitive(input, hint) {
+    if (typeof input !== "object" || input === null) return input;
+    var prim = input[Symbol.toPrimitive];
+    if (prim !== undefined) {
+      var res = prim.call(input, hint || "default");
+      if (typeof res !== "object") return res;
+      throw new TypeError("@@toPrimitive must return a primitive value.");
+    }
+    return (hint === "string" ? String : Number)(input);
+  }
+  function _toPropertyKey(arg) {
+    var key = _toPrimitive(arg, "string");
+    return typeof key === "symbol" ? key : String(key);
   }
 
   var Vue$1 = Vue;
 
   const PLUGIN_NAME = "listenbrainz";
   exports.StorageType = void 0;
-
   (function (StorageType) {
     StorageType["general"] = "General";
     StorageType["listenbrainz"] = "ListenBrainz";
@@ -947,10 +955,8 @@ var ListenBrainzPlugin = (function (exports) {
         }, timeInMs);
       });
     }
-
     static handleLibreBackground(_event, data) {
       const originalData = StorageUtil.libreData;
-
       if (data.ok) {
         originalData.session = data.key;
         originalData.username = data.username;
@@ -959,14 +965,11 @@ var ListenBrainzPlugin = (function (exports) {
         originalData.session = null;
         originalData.username = null;
       }
-
       StorageUtil.libreData = originalData;
     }
-
     static alert(message) {
       bootbox.alert(`${app.getLz("term.requestError")}: ${message}`);
     }
-
     static emptyGeneralData() {
       return {
         debug: false,
@@ -975,10 +978,8 @@ var ListenBrainzPlugin = (function (exports) {
         nowPlaying: false
       };
     }
-
     static get generalStorage() {
       const data = this.getStorage(exports.StorageType.general);
-
       if (this.isGeneralData(data)) {
         return data;
       } else {
@@ -987,11 +988,9 @@ var ListenBrainzPlugin = (function (exports) {
         return data;
       }
     }
-
     static set generalStorage(value) {
       this.setStorage(exports.StorageType.general, value);
     }
-
     static emptyProviderData() {
       return {
         enabled: false,
@@ -1000,11 +999,9 @@ var ListenBrainzPlugin = (function (exports) {
         username: null
       };
     }
-
     static getBrainzData(maloja) {
       const key = maloja ? exports.StorageType.maloja : exports.StorageType.listenbrainz;
       const data = this.getStorage(key);
-
       if (this.isProviderSetting(data)) {
         return data;
       } else {
@@ -1013,11 +1010,9 @@ var ListenBrainzPlugin = (function (exports) {
         return data;
       }
     }
-
     static setBrainzData(data, maloja) {
       this.setStorage(maloja ? exports.StorageType.maloja : exports.StorageType.listenbrainz, data);
     }
-
     static emptyLibreData() {
       return {
         enabled: false,
@@ -1025,10 +1020,8 @@ var ListenBrainzPlugin = (function (exports) {
         username: null
       };
     }
-
     static get libreData() {
       const data = this.getStorage(exports.StorageType.libre);
-
       if (this.isLibreFMSetting(data)) {
         return data;
       } else {
@@ -1037,48 +1030,36 @@ var ListenBrainzPlugin = (function (exports) {
         return data;
       }
     }
-
     static set libreData(value) {
       this.setStorage(exports.StorageType.libre, value);
     }
-
     static isGeneralData(data) {
       if (data === undefined || data === null) return false;
       return typeof data.debug === "boolean" && typeof data.delay === "number" && typeof data.filterLoop === "boolean" && typeof data.nowPlaying === "boolean";
     }
-
     static isProviderSetting(data) {
       if (data === undefined || data === null) return false;
       return typeof data.enabled === "boolean" && (data.token === null || typeof data.token === "string") && (data.username === null || typeof data.username === "string") && (data.url === null || typeof data.url === "string");
     }
-
     static isLibreFMSetting(data) {
       if (data === undefined || data === null) return false;
       return typeof data.enabled === "boolean" && (data.session === null || typeof data.session === "string") && (data.username === null || typeof data.username === "string");
     }
-
     static getStorage(key, compress = false) {
       let json = localStorage.getItem(`plugin.${PLUGIN_NAME}.${this.SETTINGS_KEY}.${key.toLocaleLowerCase()}`);
-
       if (compress && json !== null) {
         json = lz.decompress(json);
       }
-
       return json ? JSON.parse(json) : null;
     }
-
     static setStorage(key, data, compress = false) {
       let string = JSON.stringify(data);
-
       if (compress) {
         string = lz.compress(string);
       }
-
       localStorage.setItem(`plugin.${PLUGIN_NAME}.${this.SETTINGS_KEY}.${key.toLocaleLowerCase()}`, string);
     }
-
   }
-
   _defineProperty(StorageUtil, "SETTINGS_KEY", "settings");
 
   var Brainz = Vue$1.component(`plugin.${PLUGIN_NAME}.brainz`, {
@@ -1153,7 +1134,6 @@ var ListenBrainzPlugin = (function (exports) {
         app: this.$root
       }, data);
     },
-
     mounted() {
       this.handleChange = debounce_1(this.handleChange, 300);
       ipcRenderer.on(`plugin.${PLUGIN_NAME}.${this.title}.name`, (_event, auth) => {
@@ -1165,34 +1145,27 @@ var ListenBrainzPlugin = (function (exports) {
         }
       });
     },
-
     watch: {
       enabled() {
         this.handleChange();
       },
-
       token() {
         this.handleChange();
       },
-
       url() {
         this.handleChange();
       },
-
       username() {
         this.handleChange(false);
       }
-
     },
     computed: {
       isBaseListenbrainz() {
         return this.title === exports.StorageType.listenbrainz && !this.url;
       },
-
       configured() {
         return !!this.token && !!this.username && (this.title !== exports.StorageType.maloja || !!this.url);
       }
-
     },
     methods: {
       handleChange(notify = true) {
@@ -1203,17 +1176,14 @@ var ListenBrainzPlugin = (function (exports) {
           username: this.username
         };
         StorageUtil.setBrainzData(data, this.title === exports.StorageType.maloja);
-
         if (this.title === exports.StorageType.listenbrainz) {
           // we only emit a username if we have a token (truthy), and are using the base URL
           this.$emit("username", this.token && !this.url ? this.username : null);
         }
-
         if (notify) {
           ipcRenderer.invoke(`plugin.${PLUGIN_NAME}.${this.title}`, data);
         }
       }
-
     }
   });
 
@@ -1273,19 +1243,15 @@ var ListenBrainzPlugin = (function (exports) {
         settings: StorageUtil.generalStorage
       };
     },
-
     mounted() {
       this.handleChange = debounce_1(this.handleChange, 300);
     },
-
     watch: {
       settings: {
         deep: true,
-
         handler() {
           this.handleChange();
         }
-
       }
     },
     methods: {
@@ -1293,7 +1259,6 @@ var ListenBrainzPlugin = (function (exports) {
         StorageUtil.generalStorage = this.settings;
         ipcRenderer.invoke(`plugin.${PLUGIN_NAME}.${exports.StorageType.general}`, this.settings);
       }
-
     }
   });
 
@@ -1340,7 +1305,6 @@ var ListenBrainzPlugin = (function (exports) {
         waiting: false
       }, StorageUtil.libreData);
     },
-
     mounted() {
       this.handleChange = debounce_1(this.handleChange, 300);
       const event = `plugin.${PLUGIN_NAME}.${exports.StorageType.libre}.name`;
@@ -1354,28 +1318,23 @@ var ListenBrainzPlugin = (function (exports) {
         }
       });
     },
-
     destroyed() {
       ipcRenderer.on(`plugin.${PLUGIN_NAME}.${exports.StorageType.libre}.name`, StorageUtil.handleLibreBackground);
     },
-
     watch: {
       enabled(newVal, oldVal) {
         // We ignore this change if setting enabled -> false while the user  is not authenticated.
         const shouldIgnore = !newVal && oldVal && !this.session;
         this.handleChange(!shouldIgnore);
       },
-
       session() {
         this.handleChange(true);
       }
-
     },
     computed: {
       connecting() {
         return this.token !== null || this.session !== null;
       }
-
     },
     methods: {
       handleChange(notify) {
@@ -1385,12 +1344,10 @@ var ListenBrainzPlugin = (function (exports) {
           username: this.username
         };
         StorageUtil.libreData = data;
-
         if (notify) {
           ipcRenderer.invoke(`plugin.${PLUGIN_NAME}.${exports.StorageType.libre}`, data);
         }
       },
-
       async connectLibre() {
         if (this.connecting) {
           this.enabled = false;
@@ -1400,10 +1357,8 @@ var ListenBrainzPlugin = (function (exports) {
           this.waiting = false;
         } else {
           this.waiting = true;
-
           try {
             const url = await ipcRenderer.invoke(`plugin.${PLUGIN_NAME}.${exports.StorageType.libre}.token`);
-
             if (url.ok) {
               const target = `https://libre.fm/api/auth/?api_key=${url.key}&token=${url.token}`;
               window.open(target);
@@ -1418,11 +1373,10 @@ var ListenBrainzPlugin = (function (exports) {
           }
         }
       }
-
     }
   });
 
-  const name="cider-music-listenbrainz-plugin";const version="1.0.6";const repository={type:"git",url:"git+https://github.com/kgarner7/cider-music-listenbrainz-plugin"};
+  const name="cider-music-listenbrainz-plugin";const version="1.0.7";const repository={type:"git",url:"git+https://github.com/kgarner7/cider-music-listenbrainz-plugin"};
 
   const USER_AGENT = `${name}/${version} { ${repository.url} }`;
 
@@ -1455,44 +1409,36 @@ var ListenBrainzPlugin = (function (exports) {
         handler() {
           this.refetch();
         }
-
       }
     },
-
     async mounted() {
       this.refetch();
     },
-
     methods: {
       refetch() {
         const id = this.item.mk;
-
         if (id && !this.cached[id]) {
           this.$emit("cache", id, this.item.score);
         }
       }
-
     }
   });
 
   var RecommendationType;
-
   (function (RecommendationType) {
     RecommendationType["raw"] = "raw";
     RecommendationType["similar"] = "similar";
     RecommendationType["top"] = "top";
   })(RecommendationType || (RecommendationType = {}));
-
   var Matched;
-
   (function (Matched) {
     Matched["any"] = "any";
     Matched["only"] = "only";
     Matched["not"] = "not";
   })(Matched || (Matched = {}));
+  let killed = false;
 
-  let killed = false; // trick the compiler into thinking it is used
-
+  // trick the compiler into thinking it is used
   RecItem.version;
   var Recommendations = Vue$1.component(`plugin.${PLUGIN_NAME}.recommendation`, {
     template: `
@@ -1649,7 +1595,6 @@ var ListenBrainzPlugin = (function (exports) {
     },
     data: function () {
       let persist = StorageUtil.getStorage("recommendation", true);
-
       if (!persist) {
         persist = {
           [RecommendationType.raw]: {},
@@ -1668,7 +1613,6 @@ var ListenBrainzPlugin = (function (exports) {
         };
         StorageUtil.setStorage("recommendation", persist, true);
       }
-
       return {
         app: this.$root,
         count: null,
@@ -1677,48 +1621,40 @@ var ListenBrainzPlugin = (function (exports) {
         query: null
       };
     },
-
     mounted() {
       this.update = debounce_1(this.update, 300);
       killed = true;
     },
-
     watch: {
       "persist.fetch": {
         handler() {
           this.update();
         }
-
       },
       "persist.matched": {
         handler() {
           this.update();
         }
-
       },
       "persist.type": {
         handler() {
           this.update();
         }
-
       },
       [`persist.page.${RecommendationType.raw}`]: {
         handler() {
           this.update();
         }
-
       },
       [`persist.page.${RecommendationType.similar}`]: {
         handler() {
           this.update();
         }
-
       },
       [`persist.page.${RecommendationType.top}`]: {
         handler() {
           this.update();
         }
-
       }
     },
     computed: {
@@ -1726,46 +1662,35 @@ var ListenBrainzPlugin = (function (exports) {
       currentPage() {
         return this.persist.page[this.persist.type] ?? 1;
       },
-
       currentSlice() {
         const startingPage = Math.min(this.numPages, this.currentPage);
         const result = this.display.slice((startingPage - 1) * this.persist.perPage, startingPage * this.persist.perPage);
         return result;
       },
-
       numPages() {
         return Math.ceil(this.display.length / this.persist.perPage);
       },
-
       pagesToShow() {
         let start = this.currentPage - 4;
         let end = this.currentPage + 4;
-
         if (start < 1) {
           end += 1 - start;
           start = 1;
         }
-
         const endDifference = end - this.numPages;
-
         if (endDifference > 0) {
           end = this.numPages;
           start = Math.max(1, start - endDifference);
         }
-
         const array = [];
-
         for (let idx = start; idx <= end; idx++) {
           array.push(idx);
         }
-
         return array;
       },
-
       // display
       display() {
         let data = Object.values(this.persist[this.persist.type]);
-
         if (this.query && this.persist.matched !== Matched.any) {
           const expectMatch = this.persist.matched === Matched.only;
           const query = this.query.toLocaleLowerCase();
@@ -1777,10 +1702,8 @@ var ListenBrainzPlugin = (function (exports) {
           const expectMatch = this.persist.matched === Matched.only;
           data = data.filter(item => item.mk !== null === expectMatch);
         }
-
         return data;
       }
-
     },
     methods: {
       // Pagination
@@ -1788,19 +1711,15 @@ var ListenBrainzPlugin = (function (exports) {
         const isCurrentPage = idx === this.currentPage || idx === this.numPages && this.currentPage > this.numPages;
         return `md-btn page-btn${isCurrentPage ? ' md-btn-primary' : ''}`;
       },
-
       changePage(event) {
         const value = event.target.valueAsNumber;
-
         if (!isNaN(value) && value >= 1 && value <= this.numPages) {
           this.persist.page[this.persist.type] = value;
         }
       },
-
       goToPage(page) {
         this.persist.page[this.persist.type] = page;
       },
-
       goToPrevious: function () {
         if (this.currentPage > 1) {
           this.persist.page[this.persist.type] -= 1;
@@ -1814,7 +1733,6 @@ var ListenBrainzPlugin = (function (exports) {
       goToEnd: function () {
         this.persist.page[this.persist.type] = this.numPages;
       },
-
       // Recommendations
       async fetchRecommendations() {
         if (this.count !== null) return;
@@ -1823,7 +1741,6 @@ var ListenBrainzPlugin = (function (exports) {
         const type = this.persist.type;
         const count = this.persist.fetch;
         const existingCount = Object.keys(this.persist[type]).length;
-
         if (count !== -1 && count < existingCount) {
           this.app.confirm(`You currently have ${existingCount} recommendations, but are fetching ${count}. Only the top ${count} will be saved. Proceed?`, () => {
             this.doFetch(user, type, count).catch(error => {
@@ -1834,38 +1751,34 @@ var ListenBrainzPlugin = (function (exports) {
           await this.doFetch(user, type, count);
         }
       },
-
       async doFetch(user, type, count) {
         this.count = 0;
-        this.outOf = 0; // Per API docs, this is guaranteed to be sorted in decreasing order
+        this.outOf = 0;
 
+        // Per API docs, this is guaranteed to be sorted in decreasing order
         let recommendations = [];
-
         if (this.persist.fetch !== -1) {
           recommendations = (await this.fetchRecs(user, type, count)).payload.mbids;
         } else {
           for (;;) {
             const recs = await this.fetchRecs(user, type, 1000, recommendations.length);
             recommendations = recommendations.concat(recs.payload.mbids);
-
             if (recommendations.length >= recs.payload.total_mbid_count) {
               break;
             }
           }
         }
-
         this.outOf = recommendations.length;
         const recs = this.persist[this.persist.type];
-        let newCount = 1; // Inside this loop, we modify the current mapping of recommendations. This is primarily
-        // so that they can be 
+        let newCount = 1;
 
+        // Inside this loop, we modify the current mapping of recommendations. This is primarily
+        // so that they can be 
         for (const rec of recommendations) {
           const existing = recs[rec.recording_mbid];
           if (killed) break;
-
           if (!existing) {
             const now = performance.now();
-
             try {
               const mbData = await fetch(`https://musicbrainz.org/ws/2/recording/${rec.recording_mbid}?fmt=json&inc=releases+artists+isrcs`, {
                 headers: {
@@ -1873,15 +1786,13 @@ var ListenBrainzPlugin = (function (exports) {
                 }
               });
               const json = await mbData.json();
-              const elapsed = performance.now() - now; // The rate limit is 1 request/sec/ip, but let's be more cautious
-
+              const elapsed = performance.now() - now;
+              // The rate limit is 1 request/sec/ip, but let's be more cautious
               await StorageUtil.sleep(Math.ceil(1000 - elapsed));
               let artistNames = "";
-
               for (const artist of json["artist-credit"]) {
                 artistNames += artist.name + artist.joinphrase;
               }
-
               const data = {
                 by: artistNames,
                 mk: null,
@@ -1889,10 +1800,8 @@ var ListenBrainzPlugin = (function (exports) {
                 score: rec.score,
                 title: json.title
               };
-
               if (json.isrcs.length > 0) {
                 const response = await this.app.mk.api.v3.music(`/v1/catalog/${this.app.mk.storefrontCountryCode}/songs?filter[isrc]=${json.isrcs.join(", ")}`);
-
                 if (response.response.ok && response.data.data.length > 0) {
                   for (const item of response.data.data) {
                     if (item.meta?.redeliveryId) continue;
@@ -1902,59 +1811,52 @@ var ListenBrainzPlugin = (function (exports) {
                   }
                 }
               }
-
               if (!data.mk) {
                 const query = encodeURIComponent(`${json.title} - ${artistNames}`);
                 const response = await this.app.mk.api.v3.music(`/v1/catalog/${this.app.mk.storefrontCountryCode}/search?term=${query}&limit=25&types=songs`);
-
                 if (response.response.ok && response.data.results.songs?.data.length === 1) {
                   const item = response.data.results.songs.data[0];
                   data.mk = item.id;
                   this.$set(this.cached, data.mk, item);
                 }
               }
-
               this.$set(recs, rec.recording_mbid, data);
             } catch (error) {
               console.error(`[plugin][%s]:`, PLUGIN_NAME, error);
             }
-
             newCount += 1;
           } else {
             existing.listen = rec.latest_listened_at;
             existing.score = rec.score;
             recs[rec.recording_mbid] = existing;
           }
+          this.count += 1;
 
-          this.count += 1; // every 30 new songs, checkpoint
-
+          // every 30 new songs, checkpoint
           if (newCount % 30 === 0) {
             StorageUtil.setStorage("recommendation", this.persist, true);
           }
-
           this.$set(this, "recs", recs);
-        } // Sort the new object
+        }
 
-
+        // Sort the new object
         const newRecs = {};
         let addCount = 0;
-
         for (const [key, match] of Object.entries(this.persist[type]).sort((a, b) => b[1].score - a[1].score)) {
           newRecs[key] = match;
-          addCount++; // We only support having the top X recommendations
-          // This is to prevent indefinite growth
+          addCount++;
 
+          // We only support having the top X recommendations
+          // This is to prevent indefinite growth
           if (addCount === recommendations.length) {
             break;
           }
         }
-
         this.persist[type] = newRecs;
         this.count = null;
         this.outOf = null;
         StorageUtil.setStorage("recommendation", this.persist, true);
       },
-
       async fetchRecs(user, type, count, offset = 0) {
         const data = await fetch(`https://api.listenbrainz.org/1/cf/recommendation/user/${user}/recording?artist_type=${type}&count=${count}&offset=${offset}`, {
           headers: {
@@ -1962,33 +1864,26 @@ var ListenBrainzPlugin = (function (exports) {
           }
         });
         const remainingCalls = parseInt(data.headers.get("x-ratelimit-remaining"));
-
         if (remainingCalls === 0) {
           const resetInSec = parseInt(data.headers.get("x-ratelimit-reset-in"));
           await StorageUtil.sleep(resetInSec * 1000);
         }
-
         return data.json();
       },
-
       search(title) {
         this.app.search.term = title;
         this.app.searchQuery();
         this.app.showSearch();
       },
-
       update() {
         StorageUtil.setStorage("recommendation", this.persist, true);
       },
-
       cacheChange(id, score) {
         this.$emit("cache", id, score);
       },
-
       kill() {
         killed = true;
       },
-
       nuke() {
         const type = this.persist.type;
         this.app.confirm(`Are you sure you want to delete all '${type}' recommendations?`, result => {
@@ -1998,7 +1893,6 @@ var ListenBrainzPlugin = (function (exports) {
           }
         });
       }
-
     }
   });
 
@@ -2006,8 +1900,9 @@ var ListenBrainzPlugin = (function (exports) {
   Brainz.version;
   General.version;
   Libre.version;
-  Recommendations.version; // Adapted from https://github.com/ChaseIngebritson/Cider-Music-Recommendation-Plugin/blob/e4f9d06ebfc6182983333dabb7d7946d744db010/src/components/musicRecommendations-vue.js
+  Recommendations.version;
 
+  // Adapted from https://github.com/ChaseIngebritson/Cider-Music-Recommendation-Plugin/blob/e4f9d06ebfc6182983333dabb7d7946d744db010/src/components/musicRecommendations-vue.js
   Vue$1.component(`plugin.${PLUGIN_NAME}`, {
     template: `
   <div class="content-inner settings-page">
@@ -2034,34 +1929,28 @@ var ListenBrainzPlugin = (function (exports) {
         username: StorageUtil.getBrainzData(false).username
       };
     },
-
     mounted() {
       this.fetchAll = debounce_1(this.fetchAll, 300);
     },
-
     methods: {
       cacheChange(id, score) {
         this.pending.push([score, id]);
         this.fetchAll();
       },
-
       async fetchAll() {
         // Why all this? The goal of this is to batch requests in 25, so as to reduce the load of sending out a massive load of requests at once.
         const items = this.pending;
         this.pending = [];
         items.sort((a, b) => b[0] - a[0]);
         const GROUP_SIZE = 25;
-
         for (let idx = 0; idx < items.length; idx += GROUP_SIZE) {
           const group = items.slice(idx, idx + GROUP_SIZE);
           await Promise.all(group.map(this.fetchItem));
           await StorageUtil.sleep(100);
         }
       },
-
       async fetchItem(item) {
         const id = item[1];
-
         try {
           const data = await this.app.mk.api.v3.music(`/v1/catalog/us/songs/${id}`);
           this.$set(this.cached, id, data.data.data[0]);
@@ -2069,29 +1958,25 @@ var ListenBrainzPlugin = (function (exports) {
           console.error("[plugin][%s]:", PLUGIN_NAME, error);
         }
       }
-
     }
   });
-
   class ListenbrainzFrontend {
     constructor() {
       const menuEntry = new CiderFrontAPI.Objects.MenuEntry();
       menuEntry.id = window.uuidv4();
       menuEntry.name = "Libre.fm, ListenBrainz, Maloja";
-
       menuEntry.onClick = () => {
         app.appRoute(`plugin/${PLUGIN_NAME}`);
       };
-
       CiderFrontAPI.AddMenuEntry(menuEntry);
-      CiderFrontAPI.StyleSheets.Add(`./plugins/gh_504963482/listenbrainz.less`); // Delete prior configuration.
+      CiderFrontAPI.StyleSheets.Add(`./plugins/gh_504963482/listenbrainz.less`);
 
+      // Delete prior configuration.
       localStorage.removeItem(`plugin.${PLUGIN_NAME}.settings`);
       ipcRenderer.invoke(`plugin.${PLUGIN_NAME}.${exports.StorageType.general}`, StorageUtil.generalStorage);
       const LIBRE = `plugin.${PLUGIN_NAME}.${exports.StorageType.libre}`;
       ipcRenderer.once(`${LIBRE}.name`, (_event, auth) => {
         const settings = StorageUtil.libreData;
-
         if (auth.ok) {
           settings.session = auth.key;
           settings.username = auth.username;
@@ -2099,36 +1984,28 @@ var ListenBrainzPlugin = (function (exports) {
           settings.session = null;
           settings.username = null;
         }
-
         ipcRenderer.on(`${LIBRE}.name`, StorageUtil.handleLibreBackground);
         StorageUtil.libreData = settings;
       }).invoke(LIBRE, StorageUtil.libreData);
-
       function handleBrainz(maloja) {
         return function (_event, auth) {
           const settings = StorageUtil.getBrainzData(maloja);
-
           if (auth.ok) {
             settings.username = auth.username;
           } else {
             settings.username = null;
           }
-
           StorageUtil.setBrainzData(settings, maloja);
         };
       }
-
       const LISTEN_BRAINZ = `plugin.${PLUGIN_NAME}.${exports.StorageType.listenbrainz}`;
       ipcRenderer.once(`${LISTEN_BRAINZ}.name`, handleBrainz(false)).invoke(LISTEN_BRAINZ, StorageUtil.getBrainzData(false));
       const MALOJA = `plugin.${PLUGIN_NAME}.${exports.StorageType.maloja}`;
       ipcRenderer.once(`${MALOJA}.name`, handleBrainz(true)).invoke(MALOJA, StorageUtil.getBrainzData(true));
     }
-
   }
-
   _defineProperty(ListenbrainzFrontend, "cached", {});
-
-  const BrainzFrontend = new ListenbrainzFrontend(); // Exports, just incase
+  const BrainzFrontend = new ListenbrainzFrontend();
 
   exports.Brainz = Brainz;
   exports.BrainzFrontend = BrainzFrontend;

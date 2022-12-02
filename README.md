@@ -39,16 +39,16 @@ This plugin will search for tracks in Apple Music, first by ISRC (if present), a
 The main code branch is `main-dev`. If you wish to make changes, you should work on this branch.
 
 ### Setup
-This project uses yarn to build. 
+This project uses pnpm to build. 
 You should make sure to install this first. 
-Then run ```yarn``` to install all of the dependencies (these are only used for development/type checking).
+Then run ```pnpm install``` to install all of the dependencies (these are only used for development/type checking).
 You should also copy `.env.example` to `.env`. 
 If you are on Linux, set `FLATPAK` to either `true` if you are using Flatpak. Otherwise, you can leave it as false.
 
 ### Building
-If you want to test your changes, you should run `yarn start`. 
+If you want to test your changes, you should run `pnpm start`. 
 This will watch for changes, and attempt to copy your files to the correct directory.
-For type-checking, you should also run `yarn type-check:watch`.
+For type-checking, you should also run `pnpm type-check:watch`.
 
 ### Debugging the frontend
 To prevent pollution of the global namespace, I've made most of the frontend build as an IIFE. There are some exports in `index.frontend.ts`, which you can access by using the variable `ListenBrainzPlugin` (e.g. `ListenBrainzPlugin.StorageUtil`).

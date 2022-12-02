@@ -5,17 +5,14 @@ var electron = require('electron');
 
 function ownKeys(object, enumerableOnly) {
   var keys = Object.keys(object);
-
   if (Object.getOwnPropertySymbols) {
     var symbols = Object.getOwnPropertySymbols(object);
     enumerableOnly && (symbols = symbols.filter(function (sym) {
       return Object.getOwnPropertyDescriptor(object, sym).enumerable;
     })), keys.push.apply(keys, symbols);
   }
-
   return keys;
 }
-
 function _objectSpread2(target) {
   for (var i = 1; i < arguments.length; i++) {
     var source = null != arguments[i] ? arguments[i] : {};
@@ -25,11 +22,10 @@ function _objectSpread2(target) {
       Object.defineProperty(target, key, Object.getOwnPropertyDescriptor(source, key));
     });
   }
-
   return target;
 }
-
 function _defineProperty(obj, key, value) {
+  key = _toPropertyKey(key);
   if (key in obj) {
     Object.defineProperty(obj, key, {
       value: value,
@@ -40,8 +36,21 @@ function _defineProperty(obj, key, value) {
   } else {
     obj[key] = value;
   }
-
   return obj;
+}
+function _toPrimitive(input, hint) {
+  if (typeof input !== "object" || input === null) return input;
+  var prim = input[Symbol.toPrimitive];
+  if (prim !== undefined) {
+    var res = prim.call(input, hint || "default");
+    if (typeof res !== "object") return res;
+    throw new TypeError("@@toPrimitive must return a primitive value.");
+  }
+  return (hint === "string" ? String : Number)(input);
+}
+function _toPropertyKey(arg) {
+  var key = _toPrimitive(arg, "string");
+  return typeof key === "symbol" ? key : String(key);
 }
 
 var lzString = {exports: {}};
@@ -551,7 +560,6 @@ var lz = lzString.exports;
 
 const PLUGIN_NAME = "listenbrainz";
 let StorageType;
-
 (function (StorageType) {
   StorageType["general"] = "General";
   StorageType["listenbrainz"] = "ListenBrainz";
@@ -567,10 +575,8 @@ class StorageUtil {
       }, timeInMs);
     });
   }
-
   static handleLibreBackground(_event, data) {
     const originalData = StorageUtil.libreData;
-
     if (data.ok) {
       originalData.session = data.key;
       originalData.username = data.username;
@@ -579,14 +585,11 @@ class StorageUtil {
       originalData.session = null;
       originalData.username = null;
     }
-
     StorageUtil.libreData = originalData;
   }
-
   static alert(message) {
     bootbox.alert(`${app.getLz("term.requestError")}: ${message}`);
   }
-
   static emptyGeneralData() {
     return {
       debug: false,
@@ -595,10 +598,8 @@ class StorageUtil {
       nowPlaying: false
     };
   }
-
   static get generalStorage() {
     const data = this.getStorage(StorageType.general);
-
     if (this.isGeneralData(data)) {
       return data;
     } else {
@@ -607,11 +608,9 @@ class StorageUtil {
       return data;
     }
   }
-
   static set generalStorage(value) {
     this.setStorage(StorageType.general, value);
   }
-
   static emptyProviderData() {
     return {
       enabled: false,
@@ -620,11 +619,9 @@ class StorageUtil {
       username: null
     };
   }
-
   static getBrainzData(maloja) {
     const key = maloja ? StorageType.maloja : StorageType.listenbrainz;
     const data = this.getStorage(key);
-
     if (this.isProviderSetting(data)) {
       return data;
     } else {
@@ -633,11 +630,9 @@ class StorageUtil {
       return data;
     }
   }
-
   static setBrainzData(data, maloja) {
     this.setStorage(maloja ? StorageType.maloja : StorageType.listenbrainz, data);
   }
-
   static emptyLibreData() {
     return {
       enabled: false,
@@ -645,10 +640,8 @@ class StorageUtil {
       username: null
     };
   }
-
   static get libreData() {
     const data = this.getStorage(StorageType.libre);
-
     if (this.isLibreFMSetting(data)) {
       return data;
     } else {
@@ -657,51 +650,39 @@ class StorageUtil {
       return data;
     }
   }
-
   static set libreData(value) {
     this.setStorage(StorageType.libre, value);
   }
-
   static isGeneralData(data) {
     if (data === undefined || data === null) return false;
     return typeof data.debug === "boolean" && typeof data.delay === "number" && typeof data.filterLoop === "boolean" && typeof data.nowPlaying === "boolean";
   }
-
   static isProviderSetting(data) {
     if (data === undefined || data === null) return false;
     return typeof data.enabled === "boolean" && (data.token === null || typeof data.token === "string") && (data.username === null || typeof data.username === "string") && (data.url === null || typeof data.url === "string");
   }
-
   static isLibreFMSetting(data) {
     if (data === undefined || data === null) return false;
     return typeof data.enabled === "boolean" && (data.session === null || typeof data.session === "string") && (data.username === null || typeof data.username === "string");
   }
-
   static getStorage(key, compress = false) {
     let json = localStorage.getItem(`plugin.${PLUGIN_NAME}.${this.SETTINGS_KEY}.${key.toLocaleLowerCase()}`);
-
     if (compress && json !== null) {
       json = lz.decompress(json);
     }
-
     return json ? JSON.parse(json) : null;
   }
-
   static setStorage(key, data, compress = false) {
     let string = JSON.stringify(data);
-
     if (compress) {
       string = lz.compress(string);
     }
-
     localStorage.setItem(`plugin.${PLUGIN_NAME}.${this.SETTINGS_KEY}.${key.toLocaleLowerCase()}`, string);
   }
-
 }
-
 _defineProperty(StorageUtil, "SETTINGS_KEY", "settings");
 
-const name="cider-music-listenbrainz-plugin";const version="1.0.6";const author="Kendall Garner <17521368+kgarner7@users.noreply.github.com>";const description="Cider Libre.fm/ListenBrainz/Maloja Scrobbler";const repository={type:"git",url:"git+https://github.com/kgarner7/cider-music-listenbrainz-plugin"};
+const name="cider-music-listenbrainz-plugin";const version="1.0.7";const author="Kendall Garner <17521368+kgarner7@users.noreply.github.com>";const description="Cider Libre.fm/ListenBrainz/Maloja Scrobbler";const repository={type:"git",url:"git+https://github.com/kgarner7/cider-music-listenbrainz-plugin"};
 
 const USER_AGENT = `${name}/${version} { ${repository.url} }`;
 var pkg = {
@@ -717,14 +698,10 @@ class BaseProvider {
     this.env = env;
     this.net = net;
   }
-
   constructor(provider) {
     _defineProperty(this, "provider", void 0);
-
     _defineProperty(this, "settings", void 0);
-
     _defineProperty(this, "urlencoded", false);
-
     this.settings = {
       enabled: false,
       session: null,
@@ -737,31 +714,24 @@ class BaseProvider {
       this.update(settings);
     });
   }
-
   enabled() {
     return this.settings.enabled && this.settings.username !== undefined;
   }
-
   async getAuthToken() {
     throw new Error("This function must be overridden");
   }
-
   scrobbleSong(_payload, _scrobbledAt) {
     throw new Error("This function must be overridden");
   }
-
   updateListening(_payload) {
     throw new Error("This function must be overridden");
   }
-
   update(_settings) {
     throw new Error("This function must be overridden");
   }
-
   async authenticate() {
     try {
       let auth;
-
       try {
         auth = await this.timeoutPromise(this.auth());
       } catch (error) {
@@ -770,7 +740,6 @@ class BaseProvider {
           error: error.message
         };
       }
-
       BaseProvider.env.utils.getWindow().webContents.send(`plugin.${PLUGIN_NAME}.${this.provider}.name`, auth);
       this.settings.username = auth.ok ? auth.username : null;
       this.settings.session = auth.ok ? auth.key || null : null;
@@ -779,15 +748,12 @@ class BaseProvider {
       console.error("[Plugin][%s]: Error when authenticating ", error);
     }
   }
-
   async auth() {
     throw new Error("This function must be overridden");
   }
-
   getApiUrl() {
     throw new Error("This function must be overridden");
   }
-
   static logError(error) {
     if (!error.net) {
       console.error("[Plugin][%s]: %s (status code %d)", PLUGIN_NAME, error.msg, error.code);
@@ -795,7 +761,6 @@ class BaseProvider {
       console.error("[Plugin][%s]: ", PLUGIN_NAME, error.error);
     }
   }
-
   async timeoutPromise(promise, timeoutMs = BaseProvider.TIMEOUT_MS) {
     return new Promise((resolve, reject) => {
       const timeoutId = setTimeout(() => {
@@ -810,25 +775,23 @@ class BaseProvider {
       });
     });
   }
-
   async sendRequest(endpoint, jsonBody, method = "POST") {
     return new Promise((resolve, reject) => {
       const request = BaseProvider.net.request({
         url: `${this.getApiUrl()}/${endpoint}`,
         method: method
       });
-
       if (this.provider !== StorageType.libre) {
         request.setHeader("Authorization", `Token ${this.settings.token}`);
       }
-
       request.setHeader("User-Agent", USER_AGENT);
       request.on("response", response => {
         let body = "";
         response.on("end", () => {
           try {
-            const respJson = JSON.parse(body); // A response is only OK if it has HTTP code 200.
+            const respJson = JSON.parse(body);
 
+            // A response is only OK if it has HTTP code 200.
             if (response.statusCode === 200) {
               resolve(respJson);
             } else {
@@ -854,8 +817,9 @@ class BaseProvider {
           error,
           net: true
         });
-      }); // If we have a body (e.g., not validate-token), send that
+      });
 
+      // If we have a body (e.g., not validate-token), send that
       if (jsonBody) {
         if (this.urlencoded) {
           request.setHeader("Content-Type", "application/x-www-form-urlencoded");
@@ -865,26 +829,20 @@ class BaseProvider {
           request.write(JSON.stringify(jsonBody), "utf-8");
         }
       }
-
       request.end();
     });
   }
-
 }
-
 _defineProperty(BaseProvider, "TIMEOUT_MS", 10_000);
-
 _defineProperty(BaseProvider, "env", void 0);
-
 _defineProperty(BaseProvider, "net", void 0);
 
 class ListenBrainzProvider extends BaseProvider {
   constructor(provider) {
     super(provider);
   }
+
   /** @override */
-
-
   getApiUrl() {
     if (this.provider === StorageType.listenbrainz) {
       return this.settings.url || "https://api.listenbrainz.org";
@@ -896,9 +854,8 @@ class ListenBrainzProvider extends BaseProvider {
       }
     }
   }
+
   /** @override */
-
-
   scrobbleSong(payload, scrobbledAt) {
     const submission = {
       listen_type: "single",
@@ -913,24 +870,21 @@ class ListenBrainzProvider extends BaseProvider {
         } catch (error) {
           const err = error;
           BaseProvider.logError(err);
-
           if (err.net || err.code !== 503) {
             break;
-          } // Sleep for 10 seconds * how many tries we've made
+          }
 
-
+          // Sleep for 10 seconds * how many tries we've made
           await StorageUtil.sleep(10_000 * tries);
         }
       }
-
       resolve();
     }).then(() => {}).catch(error => {
       console.error("[Plugin][%s]: ", PLUGIN_NAME, error);
     });
   }
+
   /** @override */
-
-
   updateListening(payload) {
     if (this.provider === StorageType.maloja) {
       // Maloja does not support now playing
@@ -943,23 +897,19 @@ class ListenBrainzProvider extends BaseProvider {
       this.timeoutPromise(this.sendRequest("/1/submit-listens", submission)).catch(BaseProvider.logError);
     }
   }
+
   /** @override */
-
-
   update(settings) {
     const needsAuth = this.settings.token !== settings.token || this.settings.url !== settings.url;
     this.settings = settings;
-
     if (needsAuth && this.settings.token && (this.provider === StorageType.listenbrainz || this.settings.url)) {
       this.settings.username = null;
       this.authenticate();
     }
   }
-
   async auth() {
     try {
       const data = await this.timeoutPromise(this.sendRequest("1/validate-token", undefined, "GET"));
-
       if (data.valid) {
         return {
           ok: true,
@@ -973,7 +923,6 @@ class ListenBrainzProvider extends BaseProvider {
       }
     } catch (error) {
       const reqError = error;
-
       if (reqError.net) {
         return {
           ok: false,
@@ -987,36 +936,28 @@ class ListenBrainzProvider extends BaseProvider {
       }
     }
   }
-
 }
 
 // One minute
 const CONNECTIVITY_TIMEOUT = 60_000;
-
 function isLibreError(data) {
   return (typeof data.error === "string" || typeof data.error === "number") && typeof data.message === "string";
 }
-
 class LibreFMProvider extends BaseProvider {
   constructor() {
     super(StorageType.libre);
-
     _defineProperty(this, "connectTimer", void 0);
-
     this.urlencoded = true;
     electron.ipcMain.handle(`plugin.${PLUGIN_NAME}.${StorageType.libre}.token`, async () => {
       return this.getAuthToken();
     });
   }
-
   getApiUrl() {
     return "https://libre.fm";
   }
-
   async getAuthToken() {
     try {
       const data = await this.timeoutPromise(this.sendRequest("2.0?method=auth.getToken&format=json"));
-
       if (isLibreError(data)) {
         return {
           ok: false,
@@ -1042,7 +983,6 @@ class LibreFMProvider extends BaseProvider {
       };
     }
   }
-
   scrobbleSong(payload, scrobbledAt) {
     const submission = new URLSearchParams({
       method: "track.scrobble",
@@ -1057,7 +997,6 @@ class LibreFMProvider extends BaseProvider {
       console.error("[Plugin][%s]", PLUGIN_NAME, error);
     });
   }
-
   updateListening(payload) {
     const submission = new URLSearchParams({
       method: "track.updatenowplaying",
@@ -1071,7 +1010,6 @@ class LibreFMProvider extends BaseProvider {
       console.error("[Plugin][%s]", PLUGIN_NAME, error);
     });
   }
-
   update(settings) {
     // If we have no session, then either we just started, or we are attempting to authenticate.
     if (!this.settings.session) {
@@ -1079,9 +1017,7 @@ class LibreFMProvider extends BaseProvider {
       if (this.settings.username !== settings.username) {
         this.settings.username = settings.username;
       }
-
       this.settings.enabled = settings.enabled;
-
       if (settings.session) {
         this.settings.session = settings.session;
       } else if (this.settings.token) {
@@ -1099,13 +1035,11 @@ class LibreFMProvider extends BaseProvider {
       }
     }
   }
-
   async auth() {
     if (this.connectTimer) {
       clearInterval(this.connectTimer);
       this.connectTimer = undefined;
     }
-
     try {
       const search = new URLSearchParams({
         format: "json",
@@ -1114,7 +1048,6 @@ class LibreFMProvider extends BaseProvider {
         method: "auth.getSession"
       });
       const data = await this.timeoutPromise(this.sendRequest(`2.0?${search.toString()}`, undefined, "GET"));
-
       if (isLibreError(data)) {
         this.settings.enabled = false;
         return {
@@ -1133,7 +1066,6 @@ class LibreFMProvider extends BaseProvider {
     } catch (error) {
       this.settings.enabled = false;
       const reqError = error;
-
       if (reqError.net) {
         return {
           ok: false,
@@ -1147,72 +1079,54 @@ class LibreFMProvider extends BaseProvider {
       }
     }
   }
-
   apiKey() {
     return "Z9YwDsJm3EFauHkuLNPnTNN2DUv25SP7rxeAQxsn";
   }
-
 }
 
-const MAX_FRACTION_BEFORE_SCROBBLING = 0.9; // Adapted heavily from https://github.com/ciderapp/Cider/blob/dfd3fe6271f8328e3530bc7bc89d60c2f9536b87/src/main/plugins/lastfm.ts
-// In particular, getPrimaryArtist is virtually the same
+const MAX_FRACTION_BEFORE_SCROBBLING = 0.9;
 
+// Adapted heavily from https://github.com/ciderapp/Cider/blob/dfd3fe6271f8328e3530bc7bc89d60c2f9536b87/src/main/plugins/lastfm.ts
+// In particular, getPrimaryArtist is virtually the same
 class CiderListenbrainzBackend {
   constructor(env) {
     _defineProperty(this, "name", pkg.description);
-
     _defineProperty(this, "version", pkg.version);
-
     _defineProperty(this, "author", pkg.author);
-
     _defineProperty(this, "env", void 0);
-
     _defineProperty(this, "store", void 0);
-
     _defineProperty(this, "net", void 0);
-
     _defineProperty(this, "providers", void 0);
-
     _defineProperty(this, "settings", {
       debug: false,
       delay: 50,
       filterLoop: false,
       nowPlaying: false
     });
-
     _defineProperty(this, "cachedNowPlayingId", void 0);
-
     _defineProperty(this, "cachedId", void 0);
-
     _defineProperty(this, "timer", void 0);
-
     _defineProperty(this, "id", void 0);
-
     _defineProperty(this, "payload", void 0);
-
     _defineProperty(this, "scrobbled", false);
-
     _defineProperty(this, "startTime", 0);
-
     _defineProperty(this, "timeElapsedMs", 0);
-
     this.env = env;
     this.store = env.utils.getStore();
   }
-
   onReady(_win) {
     const {
       net
     } = require("electron");
-
     this.net = net;
     this.providers = {
       librefm: new LibreFMProvider(),
       listenbrainz: new ListenBrainzProvider(StorageType.listenbrainz),
       maloja: new ListenBrainzProvider(StorageType.maloja)
     };
-    BaseProvider.init(this.env, this.net); // Handle Pause/Play Events. We want to keep track of the total time elapsed
+    BaseProvider.init(this.env, this.net);
 
+    // Handle Pause/Play Events. We want to keep track of the total time elapsed
     try {
       electron.ipcMain.on("playbackStateDidChange", (_event, data) => {
         if (!this.store.general.privateEnabled && this.enabled() && this.payload?.track_metadata && data.artistName) {
@@ -1224,25 +1138,24 @@ class CiderListenbrainzBackend {
               clearTimeout(this.timer);
               this.timer = undefined;
             }
-
             this.timeElapsedMs += data.startTime - this.startTime;
           }
         }
-      }); // Handle new tracks
+      });
 
+      // Handle new tracks
       electron.ipcMain.on("nowPlayingItemDidChange", async (_event, data) => {
         if (!this.store.general.privateEnabled && this.enabled() && data.artistName) {
           // Save the ID; this will be used for later checks
-          this.id = data.playParams.catalogId || data.playParams.id; // This is available for Apple Music tracks
+          this.id = data.playParams.catalogId || data.playParams.id;
 
+          // This is available for Apple Music tracks
           if (data.isrc) {
             // Upper-case, because apparently it's sometimes not all uppercase
             const isrc = data.isrc.substring(data.isrc.length - 12).toLocaleUpperCase();
-
             try {
               // Attempt to lookup by ISRC first
               this.payload = await this.lookupIsrc(isrc, data.url.appleMusic);
-
               if (!this.payload && this.settings.debug) {
                 console.info("[Plugin][%s][%s][%s]: ISRC not found", PLUGIN_NAME, isrc, data.name);
               }
@@ -1250,14 +1163,13 @@ class CiderListenbrainzBackend {
               if (this.settings.debug) {
                 console.error("[Plugin][%s][%s][%s]", PLUGIN_NAME, isrc, data.name, error);
               }
-
               this.payload = undefined;
             }
-
             if (!this.payload) {
-              const album = data.albumName.replace(/ - Single| - EP/g, ''); // This forms the core of a payload for ListenBrainz
-              // https://listenbrainz.readthedocs.io/en/latest/users/json.htm
+              const album = data.albumName.replace(/ - Single| - EP/g, '');
 
+              // This forms the core of a payload for ListenBrainz
+              // https://listenbrainz.readthedocs.io/en/latest/users/json.htm
               this.payload = {
                 track_metadata: {
                   additional_info: {
@@ -1292,95 +1204,87 @@ class CiderListenbrainzBackend {
             } else {
               // Otherwise, it's probably a podcast. This is unsupported
               this.payload = undefined;
-
               if (this.timer) {
                 clearTimeout(this.timer);
                 this.timer = undefined;
               }
-
               return;
             }
           }
-
-          this.scrobbled = false; // Reset custom variables to keep track of timing
-
+          this.scrobbled = false;
+          // Reset custom variables to keep track of timing
           this.startTime = data.startTime;
-          this.timeElapsedMs = 0; // Adapted from LastFM plugin; if we do not filter loop, clear prior
-          // IDs. Otherwise, they are preserved (which can detect duplicate tracks)
+          this.timeElapsedMs = 0;
 
+          // Adapted from LastFM plugin; if we do not filter loop, clear prior
+          // IDs. Otherwise, they are preserved (which can detect duplicate tracks)
           if (!this.settings.filterLoop) {
             this.cachedId = undefined;
             this.cachedNowPlayingId = undefined;
           }
-
           if (this.settings.nowPlaying) {
             this.updateNowPlayingSong();
           }
-
           this.scrobbleSong();
         }
       });
       electron.ipcMain.handle(`plugin.${PLUGIN_NAME}.${StorageType.general}`, (_event, settings) => {
         this.settings = settings;
       });
-    } catch (_ignored) {// An error should only fire if we attempt to handle a second time.
+    } catch (_ignored) {
+      // An error should only fire if we attempt to handle a second time.
       // This seems to happen if you are prompted to log in and then press continue. In this case,
       // we should ignore the error
     }
-
     console.info("[Plugin][ListenBrainz]: Ready");
   }
-
   onRendererReady(_win) {
     this.env.utils.loadJSFrontend(path.join(this.env.dir, "index.frontend.js"));
     console.info("[Plugin][ListenBrainz]: Renderer Ready");
   }
-
   enabled() {
     for (const provider of Object.values(this.providers)) {
       if (provider.enabled()) {
         return true;
       }
     }
-
     return false;
   }
-
   updateNowPlayingSong() {
     if (!this.net || this.cachedNowPlayingId === this.id || !this.payload) return;
     const payload = this.payload;
-
     for (const provider of Object.values(this.providers)) {
       if (provider.enabled()) {
         provider.updateListening(payload);
       }
     }
   }
-
   scrobbleSong() {
     if (this.timer) clearTimeout(this.timer);
     if (!this.payload) return;
     const self = this;
-    const payload = this.payload; // Calculate the amount of time to wait in a song
+    const payload = this.payload;
 
-    const timeToWaitMs = Math.round(this.payload.track_metadata.additional_info.duration_ms * Math.min(self.settings.delay / 100, MAX_FRACTION_BEFORE_SCROBBLING)); // The amount of time left is the time to wait minus the elapsed time
+    // Calculate the amount of time to wait in a song
+    const timeToWaitMs = Math.round(this.payload.track_metadata.additional_info.duration_ms * Math.min(self.settings.delay / 100, MAX_FRACTION_BEFORE_SCROBBLING));
 
-    let remainingTime = timeToWaitMs - this.timeElapsedMs; // If somehow the time is negative, but we haven't scrobbled, trigger a scrobble.
+    // The amount of time left is the time to wait minus the elapsed time
+    let remainingTime = timeToWaitMs - this.timeElapsedMs;
 
+    // If somehow the time is negative, but we haven't scrobbled, trigger a scrobble.
     if (remainingTime < 0 && !this.scrobbled) {
       remainingTime = 0;
     } else if (this.scrobbled) {
       remainingTime = -1;
-    } // Set a timer for the remaining time.
+    }
 
-
+    // Set a timer for the remaining time.
     if (remainingTime >= 0) {
       self.timer = setTimeout(() => {
         self.timer = undefined;
         if (!self.net || self.cachedId === this.id) return;
         self.scrobbled = true;
         const scrobbleTime = new Date();
-
         for (const provider of Object.values(self.providers)) {
           if (provider.enabled()) {
             provider.scrobbleSong(payload, scrobbleTime);
@@ -1389,7 +1293,6 @@ class CiderListenbrainzBackend {
       }, remainingTime);
     }
   }
-
   async lookupIsrc(isrc, url) {
     return new Promise((resolve, reject) => {
       try {
@@ -1400,7 +1303,6 @@ class CiderListenbrainzBackend {
           response.on("end", () => {
             try {
               const json = JSON.parse(body);
-
               if (json.error) {
                 reject(json.error);
               } else {
@@ -1408,12 +1310,10 @@ class CiderListenbrainzBackend {
                   const recording = json.recordings[0];
                   let artistNames = "";
                   const artists = [];
-
                   for (const artist of recording["artist-credit"]) {
                     artistNames += artist.name + (artist.joinphrase || "");
                     artists.push(artist["artist"].id);
                   }
-
                   resolve({
                     track_metadata: {
                       additional_info: {
@@ -1436,8 +1336,9 @@ class CiderListenbrainzBackend {
               // We should never get here, but just in case.....
               reject(error);
             }
-          }); // We may have multiple data chunks
+          });
 
+          // We may have multiple data chunks
           response.on("data", chunk => {
             body += chunk.toString("utf-8");
           });
@@ -1450,7 +1351,6 @@ class CiderListenbrainzBackend {
       }
     });
   }
-
 }
 
 module.exports = CiderListenbrainzBackend;
